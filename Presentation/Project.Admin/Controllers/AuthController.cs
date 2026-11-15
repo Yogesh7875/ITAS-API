@@ -103,6 +103,7 @@ public class AuthController : BaseController
             return Unauthorized();
         }
 
+
         var accessToken = await _authenticationService.GenerateTokenAsync(user, session.SessionId);
         return Success(new { AccessToken = accessToken, SessionId = session.SessionId }, "Token refreshed successfully");
     }
