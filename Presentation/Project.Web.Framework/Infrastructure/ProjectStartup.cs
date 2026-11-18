@@ -17,6 +17,7 @@ using Project.Services.Helpers;
 using Project.Services.Installation;
 using Project.Services.Localization;
 using Project.Services.Logging;
+using Project.Services.OTP;
 using Project.Services.Permissions;
 using Project.Services.Security;
 using Project.Services.Tasks;
@@ -114,6 +115,7 @@ public partial class ProjectStartup : IProjectStartup
         services.AddScoped<IAuthenticationService, JwtAuthenticationService>();
         services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
         services.AddScoped<IUserSessionService, UserSessionService>();
+        services.AddScoped<IOtpService, OtpService>();
 
         //register all settings
         var typeFinder = Singleton<ITypeFinder>.Instance;

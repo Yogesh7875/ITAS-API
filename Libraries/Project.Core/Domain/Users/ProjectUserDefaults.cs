@@ -17,6 +17,8 @@ public static partial class ProjectUserDefaults
     /// </summary>
     public static string AdministratorsRoleName => "Administrators";
 
+    public static string DriverRoleName => "Driver";
+
     #endregion
 
     #region System customers

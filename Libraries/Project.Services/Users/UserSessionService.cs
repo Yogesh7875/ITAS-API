@@ -1,9 +1,9 @@
 ﻿using System.Security.Cryptography;
 using System.Text;
-using System.Transactions;
-using Microsoft.Extensions.Caching.Distributed;
+using LinqToDB;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
+using Project.Core.Caching;
 using Project.Core.Configuration;
 using Project.Core.Domain.Users;
 using Project.Data;
@@ -16,14 +16,11 @@ public class UserSessionService : IUserSessionService
     #region Fields
 
     private const string DEFAULT_APP_TYPE = "default";
-    private static readonly TimeSpan _cacheTtl = TimeSpan.FromMinutes(5);      // short TTL: a missed invalidation heals itself
-    private static readonly TimeSpan _rotationGrace = TimeSpan.FromSeconds(10); // parallel refresh calls are not "theft"
+    private static readonly TimeSpan _rotationGrace = TimeSpan.FromSeconds(10); // a retried/parallel call is not "theft"
 
-    // bounded set of locks (serialises login/refresh per user/session inside this process)
-    private static readonly SemaphoreSlim[] _gates = Enumerable.Range(0, 64).Select(_ => new SemaphoreSlim(1, 1)).ToArray();
-
-    private readonly IRepository<UserSession> _userSessionRepository;
-    private readonly IDistributedCache _cache;
+    private readonly IRepository<UserSession> _sessionRepository;
+    private readonly IStaticCacheManager _staticCacheManager;
+    private readonly ILocker _locker;
     private readonly AppSettings _appSettings;
     private readonly ILogger<UserSessionService> _logger;
 
@@ -31,13 +28,15 @@ public class UserSessionService : IUserSessionService
 
     #region Ctor
 
-    public UserSessionService(IRepository<UserSession> userSessionRepository,
-        IDistributedCache cache,
+    public UserSessionService(IRepository<UserSession> sessionRepository,
+        IStaticCacheManager staticCacheManager,
+        ILocker locker,
         AppSettings appSettings,
         ILogger<UserSessionService> logger)
     {
-        _userSessionRepository = userSessionRepository;
-        _cache = cache;
+        _sessionRepository = sessionRepository;
+        _staticCacheManager = staticCacheManager;
+        _locker = locker;
         _appSettings = appSettings;
         _logger = logger;
     }
@@ -46,35 +45,16 @@ public class UserSessionService : IUserSessionService
 
     #region Utilities
 
-    // cache is keyed by SESSION, so revoking one session can never evict another one
-    private static string CacheKey(long userId, Guid sessionId) => $"user-session:{userId}:{sessionId}";
+    private TimeSpan RefreshLifetime =>
+        TimeSpan.FromDays(_appSettings.Get<JwtConfig>().RefreshTokenExpirationInDays);
 
-    private TimeSpan RefreshLifetime => TimeSpan.FromDays(_appSettings.Get<JwtConfig>().RefreshTokenExpirationInDays);
-
-    private static SemaphoreSlim GateFor(string key) => _gates[(uint)key.GetHashCode() % (uint)_gates.Length];
-
-    private Task SetCacheAsync(UserSession session)
-    {
-        var ttl = session.ExpiresAtUtc - DateTime.UtcNow;
-        if (ttl <= TimeSpan.Zero)
-            return Task.CompletedTask;
-        if (ttl > _cacheTtl)
-            ttl = _cacheTtl;
-
-        return _cache.SetStringAsync(CacheKey(session.UserId, session.SessionId), "1",
-            new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = ttl });
-    }
-
-    private Task RemoveCacheAsync(UserSession session) =>
-        _cache.RemoveAsync(CacheKey(session.UserId, session.SessionId));
-
-    // URL-safe (no + / =) so the token survives query strings / form posts unchanged
+    //URL-safe (no + / =) so the token survives query strings and form posts unchanged
     private static string GenerateRefreshToken() => Base64UrlEncoder.Encode(RandomNumberGenerator.GetBytes(64));
 
     private static string Hash(string token) =>
         Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 
-    // swagger sends the literal "string" as a default value; never store placeholders
+    //swagger sends the literal "string" as default; never store placeholders
     private static string Clean(string value, string fallback, int maxLength)
     {
         if (string.IsNullOrWhiteSpace(value) || value.Trim().Equals("string", StringComparison.OrdinalIgnoreCase))
@@ -84,6 +64,37 @@ public class UserSessionService : IUserSessionService
         return value.Length > maxLength ? value[..maxLength] : value;
     }
 
+    private async Task SetActiveCacheAsync(UserSession session)
+    {
+        var remaining = (session.ExpiresAtUtc - DateTime.UtcNow).TotalMinutes;
+        var minutes = (int)Math.Ceiling(Math.Min(remaining, UserSessionDefaults.ActiveSessionCacheMinutes));
+        if (minutes <= 0)
+            return;
+
+        var key = _staticCacheManager.PrepareKeyForDefaultCache(UserSessionDefaults.ActiveSessionCacheKey,
+            session.UserId, session.SessionId);
+        key.CacheTime = minutes;
+
+        await _staticCacheManager.SetAsync(key, true);
+    }
+
+    private Task RemoveActiveCacheAsync(long userId, Guid sessionId) =>
+        _staticCacheManager.RemoveAsync(UserSessionDefaults.ActiveSessionCacheKey, userId, sessionId);
+
+    //ILocker does not wait: it returns false when somebody else holds the lock, so retry for a moment
+    private async Task<bool> RunWithLockAsync(string resource, Func<Task> action)
+    {
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            if (await _locker.PerformActionWithLockAsync(resource, TimeSpan.FromSeconds(30), action))
+                return true;
+
+            await Task.Delay(200);
+        }
+
+        return false;
+    }
+
     #endregion
 
     #region Methods
@@ -91,6 +102,7 @@ public class UserSessionService : IUserSessionService
     public async Task<NewSession> CreateSessionAsync(long userId, SessionInfo info)
     {
         var appType = Clean(info.AppType, DEFAULT_APP_TYPE, 50).ToLowerInvariant();
+        var singleDevice = !info.MultiDeviceLoginEnabled;
         var refreshToken = GenerateRefreshToken();
         var now = DateTime.UtcNow;
 
@@ -98,59 +110,49 @@ public class UserSessionService : IUserSessionService
         {
             UserId = userId,
             AppType = appType,
+            IsSingleDevice = singleDevice,
             SessionId = Guid.NewGuid(),
             RefreshTokenHash = Hash(refreshToken),
             CreatedOnUtc = now,
             ExpiresAtUtc = now.Add(RefreshLifetime),
-            DeviceId = Clean(info.DeviceId, "unknown", 200),
-            DeviceName = Clean(info.DeviceName, "unknown", 200),
-            IpAddress = Clean(info.IpAddress, null, 64),
+            DeviceId = Clean(info.DeviceId, "unknown", 250),
+            DeviceName = Clean(info.DeviceName, "unknown", 250),
+            IpAddress = Clean(info.IpAddress, null, 50),
             UserAgent = Clean(info.UserAgent, null, 500)
         };
 
-        IList<UserSession> revoked;
+        IList<UserSession> replaced = new List<UserSession>();
 
-        var gate = GateFor($"login:{userId}:{appType}");
-        await gate.WaitAsync();
-        try
+        //serialise concurrent logins of the same user/app (ILocker is distributed when Redis is configured);
+        //the unique filtered index (UserId, AppType) is the database-level backstop
+        var executed = await RunWithLockAsync(string.Format(UserSessionDefaults.LoginLockKey, userId, appType), async () =>
         {
-            // revoke old + insert new as ONE unit (if this fails nothing changes)
-            // If you get "This platform does not support distributed transactions", remove the scope;
-            // the unique filtered index (UserId, AppType) still guarantees a single active session.
-            using var scope = new TransactionScope(TransactionScopeOption.Required,
-                new TransactionOptions { IsolationLevel = System.Transactions.IsolationLevel.ReadCommitted },
-                TransactionScopeAsyncFlowOption.Enabled);
-
-            //1) single device login: revoke the user's active session(s) of THIS app type only
-            revoked = await _userSessionRepository.GetAllAsync(query =>
-                query.Where(s => s.UserId == userId && s.AppType == appType && s.RevokedOnUtc == null));
-
-            if (revoked.Count > 0)
+            if (singleDevice)
             {
-                foreach (var s in revoked)
+                replaced = await _sessionRepository.GetAllAsync(query => query.Where(s => s.UserId == userId && s.AppType == appType && s.RevokedOnUtc == null));
+
+                foreach (var old in replaced)
                 {
-                    s.RevokedOnUtc = now;
-                    s.RevokedReason = "Logged in from another device";
+                    old.RevokedOnUtc = now;
+                    old.RevokedReason = "Logged in from another device";
                 }
-                await _userSessionRepository.UpdateAsync(revoked);
+
+                if (replaced.Count > 0)
+                    await _sessionRepository.UpdateAsync(replaced);
             }
 
-            //2) create the new session
-            await _userSessionRepository.InsertAsync(session);
-            scope.Complete();
-        }
-        finally
-        {
-            gate.Release();
-        }
+            await _sessionRepository.InsertAsync(session);
+        });
 
-        //3) cache: evict the replaced sessions (their access tokens now fail), prime the new one
-        foreach (var old in revoked)
-            await RemoveCacheAsync(old);
-        await SetCacheAsync(session);
+        if (!executed)
+            throw new InvalidOperationException("Could not start a session right now. Please try again.");
 
-        _logger.LogInformation("Session created. UserId={UserId} AppType={AppType} SessionId={SessionId} DeviceId={DeviceId} Ip={Ip} Replaced={Replaced}",
-            userId, appType, session.SessionId, session.DeviceId, session.IpAddress, revoked.Count);
+        //evict replaced sessions (their access tokens fail immediately), prime the new one
+        foreach (var old in replaced)
+            await RemoveActiveCacheAsync(old.UserId, old.SessionId);
+        await SetActiveCacheAsync(session);
+
+        _logger.LogInformation("Session created. UserId={UserId} AppType={AppType} SessionId={SessionId} DeviceId={DeviceId} Ip={Ip} SingleDevice={SingleDevice} Replaced={Replaced}", userId, appType, session.SessionId, session.DeviceId, session.IpAddress, singleDevice, replaced.Count);
 
         return new NewSession(session.SessionId, refreshToken, session.ExpiresAtUtc);
     }
@@ -160,114 +162,110 @@ public class UserSessionService : IUserSessionService
         if (string.IsNullOrWhiteSpace(refreshToken))
             return null;
 
-        var hash = refreshToken;
+        var hash = Hash(refreshToken.Trim());
+        var now = DateTime.UtcNow;
 
-        var matches = await _userSessionRepository.GetAllAsync(query =>
+        var matches = await _sessionRepository.GetAllAsync(query =>
             query.Where(s => s.RefreshTokenHash == hash || s.PreviousRefreshTokenHash == hash));
-        var found = matches.FirstOrDefault();
-        if (found == null)
+        var session = matches.FirstOrDefault();
+
+        if (session == null)
         {
             _logger.LogWarning("Refresh rejected: no session matches the supplied token (wrong token type or stale token).");
             return null;
         }
 
-        // serialise refreshes of the same session, then re-read the row inside the lock
-        var gate = GateFor($"refresh:{found.SessionId}");
-        await gate.WaitAsync();
-        try
+        if (session.RevokedOnUtc != null || session.ExpiresAtUtc <= now)
+            return null;
+
+        //the PREVIOUS token was presented again
+        if (session.RefreshTokenHash != hash)
         {
-            matches = await _userSessionRepository.GetAllAsync(query =>
-                query.Where(s => s.RefreshTokenHash == hash || s.PreviousRefreshTokenHash == hash));
-            var session = matches.FirstOrDefault();
-
-            if (session == null || session.RevokedOnUtc != null || session.ExpiresAtUtc <= DateTime.UtcNow)
-                return null;
-
-            if (session.RefreshTokenHash != hash && session.PreviousRefreshTokenHash == hash)
+            //right after a rotation this is almost always a retried/parallel call: reject it, but keep the session
+            if (session.LastRefreshedOnUtc.HasValue && now - session.LastRefreshedOnUtc.Value <= _rotationGrace)
             {
-                // old token presented again. Right after a rotation it is most likely a parallel/retried call: do not punish it.
-                if (session.LastRefreshedOnUtc.HasValue && DateTime.UtcNow - session.LastRefreshedOnUtc.Value <= _rotationGrace)
-                {
-                    _logger.LogWarning("Refresh ignored (parallel call within grace window). SessionId={SessionId}", session.SessionId);
-                    return null;
-                }
-
-                _logger.LogWarning("Refresh token reuse detected. UserId={UserId} SessionId={SessionId}", session.UserId, session.SessionId);
-                await RevokeAsync(session.UserId, session.SessionId, "Refresh token reuse detected");
+                _logger.LogWarning("Refresh ignored (parallel call within grace window). SessionId={SessionId}", session.SessionId);
                 return null;
             }
 
-            var newToken = GenerateRefreshToken();
-            session.PreviousRefreshTokenHash = session.RefreshTokenHash;
-            session.RefreshTokenHash = Hash(newToken);
-            session.LastRefreshedOnUtc = DateTime.UtcNow;
-            session.ExpiresAtUtc = DateTime.UtcNow.Add(RefreshLifetime); // sliding expiry
-
-            await _userSessionRepository.UpdateAsync(session);
-            await SetCacheAsync(session);
-
-            _logger.LogInformation("Refresh token rotated. UserId={UserId} SessionId={SessionId}", session.UserId, session.SessionId);
-            return (session, newToken);
+            _logger.LogWarning("Refresh token reuse detected. UserId={UserId} SessionId={SessionId}", session.UserId, session.SessionId);
+            await RevokeAsync(session.UserId, session.SessionId, "Refresh token reuse detected");
+            return null;
         }
-        finally
+
+        var newToken = GenerateRefreshToken();
+        var newHash = Hash(newToken);
+        var newExpiry = now.Add(RefreshLifetime);
+
+        //atomic compare-and-swap in SQL: only ONE of several parallel calls with the same token can match the WHERE
+        var updated = await _sessionRepository.Table
+            .Where(s => s.Id == session.Id && s.RefreshTokenHash == hash && s.RevokedOnUtc == null)
+            .Set(s => s.PreviousRefreshTokenHash, s => s.RefreshTokenHash)
+            .Set(s => s.RefreshTokenHash, newHash)
+            .Set(s => s.LastRefreshedOnUtc, (DateTime?)now)
+            .Set(s => s.ExpiresAtUtc, newExpiry)
+            .UpdateAsync();
+
+        if (updated != 1)
         {
-            gate.Release();
+            _logger.LogWarning("Refresh lost the race to a parallel call. SessionId={SessionId}", session.SessionId);
+            return null;
         }
+
+        session.PreviousRefreshTokenHash = hash;
+        session.RefreshTokenHash = newHash;
+        session.LastRefreshedOnUtc = now;
+        session.ExpiresAtUtc = newExpiry;
+
+        await SetActiveCacheAsync(session);
+
+        _logger.LogInformation("Refresh token rotated. UserId={UserId} SessionId={SessionId}", session.UserId, session.SessionId);
+        return (session, newToken);
     }
 
     public async Task RevokeAsync(long userId, Guid sessionId, string reason)
     {
-        // both conditions: a caller can only revoke their own session
-        var sessions = await _userSessionRepository.GetAllAsync(query =>
-            query.Where(s => s.UserId == userId && s.SessionId == sessionId && s.RevokedOnUtc == null));
+        //both conditions: a caller can only revoke their own session
+        var revoked = await _sessionRepository.Table
+            .Where(s => s.UserId == userId && s.SessionId == sessionId && s.RevokedOnUtc == null)
+            .Set(s => s.RevokedOnUtc, (DateTime?)DateTime.UtcNow)
+            .Set(s => s.RevokedReason, reason)
+            .UpdateAsync();
 
-        var session = sessions.FirstOrDefault();
-        if (session == null)
-            return;
+        await RemoveActiveCacheAsync(userId, sessionId); //only THIS session's entry
 
-        session.RevokedOnUtc = DateTime.UtcNow;
-        session.RevokedReason = reason;
-        await _userSessionRepository.UpdateAsync(session);
-
-        await RemoveCacheAsync(session); // only THIS session's cache entry
-
-        _logger.LogInformation("Session revoked. UserId={UserId} SessionId={SessionId} Reason={Reason}", userId, sessionId, reason);
+        if (revoked > 0)
+            _logger.LogInformation("Session revoked. UserId={UserId} SessionId={SessionId} Reason={Reason}", userId, sessionId, reason);
     }
 
     public async Task<bool> IsSessionActiveAsync(long userId, Guid sessionId)
     {
-        // cache only ever holds sessions that were active; revoke/replace removes the entry, TTL is 5 min at most
-        if (await _cache.GetStringAsync(CacheKey(userId, sessionId)) != null)
+        //the flag is only ever stored for active sessions; revoke/replace removes it, and it expires within minutes
+        var key = _staticCacheManager.PrepareKeyForDefaultCache(UserSessionDefaults.ActiveSessionCacheKey, userId, sessionId);
+        if (await _staticCacheManager.GetAsync<bool>(key))
             return true;
 
         var now = DateTime.UtcNow;
-        var sessions = await _userSessionRepository.GetAllAsync(query =>
-            query.Where(s => s.UserId == userId && s.SessionId == sessionId && s.RevokedOnUtc == null && s.ExpiresAtUtc > now));
+        var sessions = await _sessionRepository.GetAllAsync(query => query.Where(s => s.UserId == userId && s.SessionId == sessionId && s.RevokedOnUtc == null && s.ExpiresAtUtc > now));
+        var session = sessions.FirstOrDefault();
 
-        var active = sessions.FirstOrDefault();
-        if (active == null)
+        if (session == null)
             return false;
 
-        await SetCacheAsync(active);
+        await SetActiveCacheAsync(session);
         return true;
     }
 
     /// <summary>
-    /// Deletes sessions that expired / were revoked more than <paramref name="retentionDays"/> ago.
+    /// Deletes sessions that expired / were revoked more than <paramref name="retentionDays"/> ago
     /// </summary>
     public async Task CleanupAsync(int retentionDays = 30)
     {
         var cutoff = DateTime.UtcNow.AddDays(-retentionDays);
 
-        var old = await _userSessionRepository.GetAllAsync(query =>
-            query.Where(s => (s.RevokedOnUtc != null && s.RevokedOnUtc < cutoff) || s.ExpiresAtUtc < cutoff)
-                 .Take(1000)); // batch; the daily job catches up
+        var deleted = await _sessionRepository.DeleteAsync(s => (s.RevokedOnUtc != null && s.RevokedOnUtc < cutoff) || s.ExpiresAtUtc < cutoff);
 
-        if (old.Count == 0)
-            return;
-
-        await _userSessionRepository.DeleteAsync(old);
-        _logger.LogInformation("Session cleanup removed {Count} rows older than {Cutoff:u}", old.Count, cutoff);
+        _logger.LogInformation("Session cleanup removed {Count} rows older than {Cutoff:u}", deleted, cutoff);
     }
 
     #endregion

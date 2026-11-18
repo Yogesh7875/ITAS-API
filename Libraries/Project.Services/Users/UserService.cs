@@ -230,6 +230,9 @@ public class UserService : IUserService
         return await Task.FromResult(query);
     }
 
-
+    public async Task<User> GetUsersByMobileNumberAsync(string mobileNumber)
+    {
+        return await _userRepository.Table.FirstOrDefaultAsync(c => c.MobileNumber == mobileNumber && c.Deleted == false);
+    }
     #endregion
 }

@@ -17,5 +17,11 @@ public class UserSession : BaseEntity
     public string UserAgent { get; set; }
     public string AppType { get; set; }
 
+    /// <summary>
+    /// True when this session was created under the single-device rule (user.MultiDeviceLoginEnabled == false).
+    /// The unique filtered index (UserId, AppType) only applies to these rows.
+    /// </summary>
+    public bool IsSingleDevice { get; set; } = true;
+
     public bool IsActive => RevokedOnUtc == null && ExpiresAtUtc > DateTime.UtcNow;
 }

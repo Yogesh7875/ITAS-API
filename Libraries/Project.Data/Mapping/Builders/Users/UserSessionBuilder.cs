@@ -25,7 +25,9 @@ public class UserSessionBuilder : ProjectEntityBuilder<UserSession>
             .WithColumn(nameof(UserSession.DeviceId)).AsString(250).Nullable()
             .WithColumn(nameof(UserSession.DeviceName)).AsString(250).Nullable()
             .WithColumn(nameof(UserSession.IpAddress)).AsString(50).Nullable()
-            .WithColumn(nameof(UserSession.UserAgent)).AsString(500).Nullable();
+            .WithColumn(nameof(UserSession.UserAgent)).AsString(500).Nullable()
+            .WithColumn(nameof(UserSession.AppType)).AsString(50).NotNullable().WithDefaultValue("default")
+            .WithColumn(nameof(UserSession.IsSingleDevice)).AsBoolean().NotNullable().WithDefaultValue(true);
 
     }
     #endregion

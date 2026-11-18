@@ -132,7 +132,7 @@ public partial class JwtAuthenticationService : IAuthenticationService
         }
 
         //whether the found user is available
-        if (user == null || !user.Active || user.Deleted)
+        if (user == null || !user.Active || user.Deleted || user.IsBanned)
             return null;
 
         //cache authenticated user
