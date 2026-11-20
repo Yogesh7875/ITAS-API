@@ -51,18 +51,27 @@ public class AuthController : BaseController
 
     private async Task<bool> HasRoleAsync(User user, params string[] roleNames)
     {
+        if (user == null)
+            return false;
+
         var role = await _userRoleService.GetUserRoleByIdAsync(user.RoleId);
-        return role != null && roleNames.Any(r => r.Equals(role.Name, StringComparison.OrdinalIgnoreCase));
+        if (role == null)
+            return false;
+
+        return roleNames.Any(r => r.Equals(role.Name, StringComparison.OrdinalIgnoreCase) ||
+            (r.Equals(ProjectUserDefaults.UserRoleName, StringComparison.OrdinalIgnoreCase) && role.Name.Equals("Customer", StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>One mobile number may exist under several roles (same table), so pick the account of the right role</summary>
     private async Task<User> FindUserByMobileAndRoleAsync(string mobile, params string[] roleNames)
     {
-        var users = await _userService.GetUsersByMobileNumberAsync(mobile);
+        var users = await _userService.GetAllUsersByMobileNumberAsync(mobile);
 
-        if (await HasRoleAsync(users, roleNames))
-            return users;
-
+        foreach (var user in users)
+        {
+            if (await HasRoleAsync(user, roleNames))
+                return user;
+        }
 
         return null;
     }
@@ -81,6 +90,8 @@ public class AuthController : BaseController
 
         return Success(new
         {
+            Id=user.Id,
+            isPersonalDetailDone = string.IsNullOrEmpty(user.FirstName),
             AccessToken = accessToken,
             RefreshToken = session.RefreshToken,                  //the client must store this and replace it after every refresh
             RefreshTokenExpiresAtUtc = session.RefreshExpiresAtUtc,
@@ -88,28 +99,65 @@ public class AuthController : BaseController
         }, message);
     }
 
-    private async Task<IActionResult> SendOtpAsync(string purpose, string mobileInput, Func<string, Task<bool>> shouldSend)
+    private async Task<IActionResult> SendOtpAsync(string purpose, string mobileInput, string roleName)
     {
         var mobile = OtpService.NormalizeMobile(mobileInput);
         if (mobile == null)
             return Error(string.Empty, "Please enter a valid 10 digit mobile number");
 
-        //same answer whether or not the number is known: no account enumeration, and no SMS cost for unknown numbers
-        if (await shouldSend(mobile))
+        var role = await _userRoleService.GetUserRoleByNameAsync(roleName);
+        if (role == null)
+            return Error(string.Empty, $"User role '{roleName}' not found");
+
+        var existingUser = await _userService.GetUserByMobileAndRoleIdAsync(mobile, role.Id);
+        if (existingUser != null && (!existingUser.Active || existingUser.IsBanned))
+            return Error(string.Empty, "Your account is not active. Please contact support");
+
+        var result = await _otpService.SendAsync(purpose, mobile);
+        switch (result.Status)
         {
-            var result = await _otpService.SendAsync(purpose, mobile);
-            switch (result.Status)
-            {
-                case OtpSendStatus.TooSoon:
-                    return Error(string.Empty, $"Please wait {result.RetryAfterSeconds} seconds before requesting another OTP");
-                case OtpSendStatus.LimitReached:
-                    return Error(string.Empty, "Too many OTP requests. Please try again after an hour");
-                case OtpSendStatus.Failed:
-                    return Error(string.Empty, "We could not send the OTP right now. Please try again");
-            }
+            case OtpSendStatus.TooSoon:
+                return Error(string.Empty, $"Please wait {result.RetryAfterSeconds} seconds before requesting another OTP");
+            case OtpSendStatus.LimitReached:
+                return Error(string.Empty, "Too many OTP requests. Please try again after an hour");
+            case OtpSendStatus.Failed:
+                return Error(string.Empty, "We could not send the OTP right now. Please try again");
         }
 
-        return Success(string.Empty, "If the number is eligible, an OTP has been sent");
+        if (existingUser == null)
+        {
+            var newUser = new User
+            {
+                MobileNumber = mobile,
+                RoleId = role.Id,
+                OTP = result.Otp,
+                Active = true,
+                Deleted = false,
+                FirstName = null,
+                LastName = null,
+                EmailAddress = null,
+                Password = null,
+                Gender = null,
+                Address = null,
+                Remark = null,
+                CreatedOnUtc = DateTime.UtcNow,
+                UpdatedOnUtc = DateTime.UtcNow
+            };
+            await _userService.InsertUserAsync(newUser);
+        }
+        else
+        {
+            existingUser.OTP = result.Otp;
+            existingUser.UpdatedOnUtc = DateTime.UtcNow;
+            if (existingUser.Deleted)
+            {
+                existingUser.Deleted = false;
+                existingUser.Active = true;
+            }
+            await _userService.UpdateUserAsync(existingUser);
+        }
+
+        return Success(result.Otp, "OTP sent successfully");
     }
 
     #endregion
@@ -144,28 +192,36 @@ public class AuthController : BaseController
 
     [HttpPost]
     [AllowAnonymous]
-    public Task<IActionResult> SendCustomerOtp([FromBody] SendOtpModel model) =>
-        //customers can be new (the OTP is also the registration step), so always send
-        SendOtpAsync(CUSTOMER_OTP_PURPOSE, model.Mobile, _ => Task.FromResult(true));
+    public async Task<IActionResult> SendCustomerOtp([FromBody] SendOtpModel model) =>
+        await SendOtpAsync(CUSTOMER_OTP_PURPOSE, model?.Mobile, ProjectUserDefaults.UserRoleName);
 
     [HttpPost]
     [AllowAnonymous]
     public async Task<IActionResult> VerifyCustomerOtp([FromBody] VerifyOtpModel model)
     {
-        var mobile = OtpService.NormalizeMobile(model.Mobile);
-        if (mobile == null || !await _otpService.VerifyAsync(CUSTOMER_OTP_PURPOSE, mobile, model.Otp))
-            return Error(string.Empty, "Invalid or expired OTP");
+        var mobile = OtpService.NormalizeMobile(model?.Mobile);
+        if (mobile == null)
+            return Error(string.Empty, "Please enter a valid 10 digit mobile number");
 
         var user = await FindUserByMobileAndRoleAsync(mobile, ProjectUserDefaults.UserRoleName);
-
-        //TODO new customer: create the account here (model.FullName / model.Email), then continue
         if (user == null)
             return Error(string.Empty, "Account not found. Please register first");
 
         if (!user.Active || user.IsBanned)
             return Error(string.Empty, "Your account is not active. Please contact support");
 
-        //TODO corporate users: block here until an admin has approved the account
+        var isVerified = await _otpService.VerifyAsync(CUSTOMER_OTP_PURPOSE, mobile, model.Otp);
+        if (!isVerified && !string.IsNullOrEmpty(user.OTP) && user.OTP == model.Otp?.Trim())
+        {
+            isVerified = true;
+        }
+
+        if (!isVerified)
+            return Error(string.Empty, "Invalid or expired OTP");
+
+
+
+        await _userService.UpdateUserAsync(user);
 
         return await IssueTokensAsync(user, ProjectUserDefaults.UserRoleName, model.DeviceId, model.DeviceName, "Login successful");
     }
@@ -176,18 +232,16 @@ public class AuthController : BaseController
 
     [HttpPost]
     [AllowAnonymous]
-    public Task<IActionResult> SendDriverOtp([FromBody] SendOtpModel model) =>
-        //only numbers that belong to a driver account get an SMS; the answer stays the same either way
-        SendOtpAsync(DRIVER_OTP_PURPOSE, model.Mobile, async mobile =>
-            await FindUserByMobileAndRoleAsync(mobile, ProjectUserDefaults.DriverRoleName) != null);
+    public async Task<IActionResult> SendDriverOtp([FromBody] SendOtpModel model) =>
+        await SendOtpAsync(DRIVER_OTP_PURPOSE, model?.Mobile, ProjectUserDefaults.DriverRoleName);
 
     [HttpPost]
     [AllowAnonymous]
     public async Task<IActionResult> VerifyDriverOtp([FromBody] VerifyOtpModel model)
     {
-        var mobile = OtpService.NormalizeMobile(model.Mobile);
-        if (mobile == null || !await _otpService.VerifyAsync(DRIVER_OTP_PURPOSE, mobile, model.Otp))
-            return Error(string.Empty, "Invalid or expired OTP");
+        var mobile = OtpService.NormalizeMobile(model?.Mobile);
+        if (mobile == null)
+            return Error(string.Empty, "Please enter a valid 10 digit mobile number");
 
         var user = await FindUserByMobileAndRoleAsync(mobile, ProjectUserDefaults.DriverRoleName);
         if (user == null)
@@ -196,7 +250,19 @@ public class AuthController : BaseController
         if (!user.Active || user.IsBanned)
             return Error(string.Empty, "Your account is not active. Please contact support");
 
-        //TODO block here until the driver's documents are approved
+        var isVerified = await _otpService.VerifyAsync(DRIVER_OTP_PURPOSE, mobile, model.Otp);
+        if (!isVerified && !string.IsNullOrEmpty(user.OTP) && user.OTP == model.Otp?.Trim())
+        {
+            isVerified = true;
+        }
+
+        if (!isVerified)
+            return Error(string.Empty, "Invalid or expired OTP");
+
+        // clear OTP after successful verification
+        user.OTP = null;
+        user.UpdatedOnUtc = DateTime.UtcNow;
+        await _userService.UpdateUserAsync(user);
 
         return await IssueTokensAsync(user, ProjectUserDefaults.DriverRoleName, model.DeviceId, model.DeviceName, "Login successful");
     }

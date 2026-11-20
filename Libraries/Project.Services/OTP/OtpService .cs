@@ -121,7 +121,7 @@ public class OtpService : IOtpService
                 await _staticCacheManager.SetAsync(countKey, sent + 1);
 
                 _logger.LogInformation("OTP sent. Purpose={Purpose} Mobile=***{Last4}", purpose, mobile[^4..]);
-                result = new OtpSendResult(OtpSendStatus.Sent);
+                result = new OtpSendResult(OtpSendStatus.Sent, 0, otp);
             });
 
         //somebody else is sending to this number right now

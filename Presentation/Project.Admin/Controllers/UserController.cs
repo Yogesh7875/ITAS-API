@@ -1,15 +1,7 @@
-﻿using DevExtreme.AspNet.Data;
-using Microsoft.AspNetCore.Mvc;
-using Project.Admin.Factories;
-using Project.Admin.Models;
+﻿using Microsoft.AspNetCore.Mvc;
 using Project.Admin.Models.Users;
-using Project.Core.Domain.Users;
-using Project.Core.Security;
-using Project.Services.Catalog;
 using Project.Services.Users;
 using Project.Web.Framework;
-using Project.Web.Framework.Infrastructure.Mapper.Extensions;
-using Project.Web.Framework.Mvc.Filters;
 
 namespace Project.Admin.Controllers;
 
@@ -18,115 +10,95 @@ public class UserController : BaseProtectedController
     #region Fields
 
     private readonly IUserService _userService;
-    private readonly IUserRoleService _userRoleService;
 
     #endregion
 
     #region Constructor
 
-    public UserController(IUserService userService,
-        IUserRoleService userRoleService
-        )
+    public UserController(IUserService userService)
     {
         _userService = userService;
-        _userRoleService = userRoleService;
     }
 
     #endregion
 
     #region Methods
-
     [HttpGet]
-    //[PermissionAuthorization("User.Read")]
-    public async Task<IActionResult> Get(long id)
+    public async Task<IActionResult> GetCustomerPersonalDetails(long id)
     {
         var user = await _userService.GetUserByIdAsync(id);
-        if (user == null || user.Deleted)
-            return Error(string.Empty, "User not found.");
 
-        user.Password = EncryptionHelper.DecryptPassword(user.Password);
-        return Success(user);
+        if (user == null)
+        {
+            return Error(string.Empty, "User not found");
+        }
+
+        var record = new
+        {
+            user.Id,
+            user.FirstName,
+            user.LastName,
+            user.EmailAddress
+        };
+
+        return Success(record, "Success");
     }
-
-
-
-
     [HttpPost]
-    //   [PermissionAuthorization("User.Write")]
-    public async Task<IActionResult> Insert(UserModel model)
-    {
-        var userdetails = await _userService.GetUserByUserNameAsync(model.UserName, model.Id);
-        if (userdetails != null && userdetails.Deleted == false)
-            return Error(string.Empty, "This username is already in use.");
-
-        var userRole = await _userRoleService.GetUserRoleByIdAsync(model.RoleId);
-        if (userRole == null || userRole.Deleted)
-            return Error(string.Empty, "User role not found.");
-
-        var user = model.ToEntity<User>();
-        user.CreatedOnUtc = DateTime.UtcNow;
-        user.UpdatedOnUtc = DateTime.UtcNow;
-        user.Active = true;
-        user.Password = EncryptionHelper.EncryptPassword(user.Password);
-        await _userService.InsertUserAsync(user);
-
-        return Success(model.Id, "User inserted successfully.");
-    }
-
-    [HttpPost]
-    //[PermissionAuthorization("User.Write")]
-    public async Task<IActionResult> Update(UserModel model)
+    public async Task<IActionResult> UpdateUserPersonalDetail(UserPersonalDetails model)
     {
         var user = await _userService.GetUserByIdAsync(model.Id);
-        if (user == null || user.Deleted)
-            return Error(string.Empty, "User not found.");
-
-        var userdetails = await _userService.GetUserByUserNameAsync(model.UserName, model.Id);
-        if (userdetails != null && userdetails.Deleted == false)
-            return Error(string.Empty, "This username is already in use.");
-
-
-        
-        user = model.ToEntity(user);
+        if (user == null)
+        {
+            return Error(string.Empty, "User not found");
+        }
+        user.FirstName = model.FirstName;
+        user.LastName = model.LastName;
+        user.EmailAddress = model.LastName;
         user.UpdatedOnUtc = DateTime.UtcNow;
-        user.Active = true;
-        user.Password = EncryptionHelper.EncryptPassword(user.Password);
-        //update user
         await _userService.UpdateUserAsync(user);
-
-        return Success(model.Id, "User updated successfully.");
+        return Success(string.Empty, "User updated successfuly");
     }
-
-    [HttpDelete]
-    //[PermissionAuthorization("User.Delete")]
-    public async Task<IActionResult> Delete(long id)
+    [HttpGet]
+    public async Task<IActionResult>GetDriverUser(long id)
     {
         var user = await _userService.GetUserByIdAsync(id);
-        if (user == null || user.Deleted)
-            return Error("User not found.");
 
-        //delete user
-        await _userService.DeleteUserAsync(user);
-        //var sqsData = new UserManagmentSQSModel();
-        //sqsData.User = user;
-        //await _sqsSender.SendAsync(SQSGroup.CENTRALTOPOSDELETEUSER, sqsData, SQSSendTo.POS);
+        if (user == null)
+        {
+            return Error(string.Empty, "User not found");
+        }
 
-        return Success(id, "User deleted successfully.");
+        var record = new
+        {
+            user.Id,
+            user.FirstName,
+            user.LastName,
+            user.EmailAddress,
+            user.Dob,
+            user.Address,
+            user.Gender,
+        };
+
+        return Success(record, "Success");
     }
 
-
-
-    #region Permissions
-    [HttpGet]
-    [PermissionAuthorization("User.Read")]
-    public async Task<IActionResult> GetAllUsers(DataLoadOptionModel loadOptionModel, [FromQuery] UserSearchModel searchModel)
+    [HttpPost]
+    public async Task<IActionResult> UpdateDriverPersonalDetails(UserModel model)
     {
-        //prepare department list model
-        var query = await _userService.GetAllUsersAsync(searchModel.SearchText);
-        var result = await DataSourceLoader.LoadAsync(query, loadOptionModel);
-        return Json(result);
+        var user = await _userService.GetUserByIdAsync(model.Id);
+        if (user == null)
+        {
+            return Error(string.Empty, "User not found");
+        }
+        user.FirstName = model.FirstName;
+        user.LastName = model.LastName;
+        user.EmailAddress = model.LastName;
+        user.Dob = model.Dob;
+        user.Gender = model.Gender;
+        user.Address = model.Address;
+        user.UpdatedOnUtc = DateTime.UtcNow;
+        await _userService.UpdateUserAsync(user);
+        return Success(string.Empty, "Driver updated successfuly");
     }
-    #endregion
-
     #endregion
 }

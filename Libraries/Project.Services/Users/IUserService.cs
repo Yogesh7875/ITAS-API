@@ -101,7 +101,10 @@ public partial interface IUserService
 
     Task<IQueryable<UserDataModel>> GetAllUsersAsync(string searchText);
 
-
+    Task<IQueryable<User>> GetIQueryableUser();
     Task<User> GetUsersByMobileNumberAsync(string mobileNumber);
 
+    Task<User> GetUserByMobileAndRoleIdAsync(string mobileNumber, long roleId);
+
+    Task<IList<User>> GetAllUsersByMobileNumberAsync(string mobileNumber);
 }

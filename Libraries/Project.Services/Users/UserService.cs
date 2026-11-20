@@ -234,5 +234,22 @@ public class UserService : IUserService
     {
         return await _userRepository.Table.FirstOrDefaultAsync(c => c.MobileNumber == mobileNumber && c.Deleted == false);
     }
+
+    public async Task<User> GetUserByMobileAndRoleIdAsync(string mobileNumber, long roleId)
+    {
+        return await _userRepository.Table.FirstOrDefaultAsync(c => c.MobileNumber == mobileNumber && c.RoleId == roleId);
+    }
+
+    public async Task<IList<User>> GetAllUsersByMobileNumberAsync(string mobileNumber)
+    {
+        return await _userRepository.Table.Where(c => c.MobileNumber == mobileNumber && c.Deleted == false).ToListAsync();
+    }
+
+    public async Task<IQueryable<User>> GetIQueryableUser()
+    {
+        var query = _userRepository.Table.Where(x => x.Deleted == false);
+
+        return await Task.FromResult(query);
+    }
     #endregion
 }

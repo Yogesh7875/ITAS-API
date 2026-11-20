@@ -176,6 +176,23 @@ public class UserRoleService : IUserRoleService
         return await Task.FromResult(query);
     }
 
+    public async Task<UserRole> GetUserRoleByNameAsync(string roleName)
+    {
+        if (string.IsNullOrWhiteSpace(roleName))
+            return null;
+
+        var role = await _userRoleRepository.Table
+            .FirstOrDefaultAsync(ur => ur.Name == roleName && ur.Deleted == false);
+
+        if (role == null && roleName.Equals(ProjectUserDefaults.UserRoleName, StringComparison.OrdinalIgnoreCase))
+        {
+            role = await _userRoleRepository.Table
+                .FirstOrDefaultAsync(ur => (ur.Name == "Customer" || ur.Name == "User") && ur.Deleted == false);
+        }
+
+        return role;
+    }
+
     #region Permissions
 
     /// <summary>

@@ -14,21 +14,21 @@ public partial class UserValidator : BaseProjectValidator<UserModel>
 
     public UserValidator(ILocalizationService localizationService)
     {
-        RuleFor(x => x.Name)
-            .NotEmpty()
-            .WithMessageAwait(localizationService.GetResourceAsync("Admin.User.Name.Required"));
+        //RuleFor(x => x.Name)
+        //    .NotEmpty()
+        //    .WithMessageAwait(localizationService.GetResourceAsync("Admin.User.Name.Required"));
 
-        RuleFor(x => x.EmailAddress)
-            .NotEmpty()
-            .WithMessageAwait(localizationService.GetResourceAsync("Admin.User.EmailAddress.Required"));
+        //RuleFor(x => x.EmailAddress)
+        //    .NotEmpty()
+        //    .WithMessageAwait(localizationService.GetResourceAsync("Admin.User.EmailAddress.Required"));
 
-        RuleFor(x => x.Password)
-            .NotEmpty()
-            .WithMessageAwait(localizationService.GetResourceAsync("Admin.User.Password.Required"));
+        //RuleFor(x => x.Password)
+        //    .NotEmpty()
+        //    .WithMessageAwait(localizationService.GetResourceAsync("Admin.User.Password.Required"));
 
-        RuleFor(x => x.RoleId)
-            .Must(x => x > 0)
-            .WithMessageAwait(localizationService.GetResourceAsync("Admin.User.RoleId.Required"));
+        //RuleFor(x => x.RoleId)
+        //    .Must(x => x > 0)
+        //    .WithMessageAwait(localizationService.GetResourceAsync("Admin.User.RoleId.Required"));
 
         
     }

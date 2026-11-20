@@ -3,7 +3,7 @@
 
 public enum OtpSendStatus { Sent, TooSoon, LimitReached, Failed }
 
-public record OtpSendResult(OtpSendStatus Status, int RetryAfterSeconds = 0);
+public record OtpSendResult(OtpSendStatus Status, int RetryAfterSeconds = 0, string Otp = null);
 public class OtpRecord
 {
     public string Hash { get; set; }

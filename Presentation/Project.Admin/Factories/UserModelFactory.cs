@@ -87,10 +87,6 @@ public partial record UserModelFactory : IUserModelFactory
             model ??= user.ToModel<UserModel>();
 
         }
-
-        model.AvailableRoles = (await _userRoleService.GetSelectDataModelListAsync()).ToModel<SelectListModel>();
-       // model.AvailableDepartments = (await _departmentService.GetSelectDataModelListAsync()).ToModel<SelectListModel>();
-
         return model;
     }
 

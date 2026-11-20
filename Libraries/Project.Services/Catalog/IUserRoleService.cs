@@ -76,6 +76,7 @@ public partial interface IUserRoleService
          int pageIndex = 0, int pageSize = int.MaxValue,
          bool showHidden = false);
     Task<IQueryable<UserRole>> GetAllUserRoleAsync(string userRoleName = null);
+    Task<UserRole> GetUserRoleByNameAsync(string roleName);
     #region Permissions
 
     /// <summary>
