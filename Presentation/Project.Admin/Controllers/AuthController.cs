@@ -1,4 +1,5 @@
 ﻿using System.Security.Claims;
+using ExCSS;
 using Google.Apis.Auth.OAuth2.Requests;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -108,6 +109,19 @@ public class AuthController : BaseController
         var role = await _userRoleService.GetUserRoleByNameAsync(roleName);
         if (role == null)
             return Error(string.Empty, $"User role '{roleName}' not found");
+
+        if (IsCustomerSide(roleName))
+        {
+            var otherRole = roleName == ProjectUserDefaults.UserRoleName
+                ? ProjectUserDefaults.CorporateRoleName
+                : ProjectUserDefaults.UserRoleName;
+
+            var otherAccount = await FindUserByMobileAndRoleAsync(mobile, otherRole);
+            if (otherAccount != null)
+                return Error(string.Empty, roleName == ProjectUserDefaults.UserRoleName
+                    ? "This number is registered as a corporate account. Please log in as Corporate."
+                    : "This number is registered as a normal account. Please log in as Customer.");
+        }
 
         var existingUser = await _userService.GetUserByMobileAndRoleIdAsync(mobile, role.Id);
         if (existingUser != null && (!existingUser.Active || existingUser.IsBanned))
@@ -310,5 +324,11 @@ public class AuthController : BaseController
         return Success(string.Empty, "Logout successful");
     }
 
+    #endregion
+
+    #region Utility
+    private static bool IsCustomerSide(string roleName) =>
+     roleName == ProjectUserDefaults.UserRoleName ||
+     roleName == ProjectUserDefaults.CorporateRoleName;
     #endregion
 }

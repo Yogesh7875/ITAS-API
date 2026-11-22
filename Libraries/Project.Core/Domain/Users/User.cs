@@ -80,4 +80,7 @@ public partial class User : BaseEntity, ISoftDeletedEntity
     /// Gets or sets the updated date time
     /// </summary>
     public DateTime UpdatedOnUtc { get; set; }
+
+    public long? CompanyId { get; set; }
+    public int ApprovalStatusId { get; set; }
 }
