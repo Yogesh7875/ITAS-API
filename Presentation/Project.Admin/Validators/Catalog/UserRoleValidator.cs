@@ -14,9 +14,9 @@ public class UserRoleValidator : BaseProjectValidator<UserRoleModel>
 
     public UserRoleValidator(ILocalizationService localizationService)
     {
-        RuleFor(x => x.Name)
-            .NotEmpty()
-            .WithMessageAwait(localizationService.GetResourceAsync("Admin.Catalog.UserRole.Name.Required"));
+        //RuleFor(x => x.Name)
+        //    .NotEmpty()
+        //    .WithMessageAwait(localizationService.GetResourceAsync("Admin.Catalog.UserRole.Name.Required"));
     }
 
     #endregion

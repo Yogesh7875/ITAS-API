@@ -22,6 +22,7 @@ public class AuthController : BaseController
 
     private const string CUSTOMER_OTP_PURPOSE = "customer";
     private const string DRIVER_OTP_PURPOSE = "driver";
+    private const string CORPORATE_OTP_PURPOSE = "corporate";
 
     private readonly IUserService _userService;
     private readonly IUserRoleService _userRoleService;
@@ -59,8 +60,7 @@ public class AuthController : BaseController
         if (role == null)
             return false;
 
-        return roleNames.Any(r => r.Equals(role.Name, StringComparison.OrdinalIgnoreCase) ||
-            (r.Equals(ProjectUserDefaults.UserRoleName, StringComparison.OrdinalIgnoreCase) && role.Name.Equals("Customer", StringComparison.OrdinalIgnoreCase)));
+        return roleNames.Any(r => r.Equals(role.Name, StringComparison.OrdinalIgnoreCase) || (r.Equals(ProjectUserDefaults.UserRoleName, StringComparison.OrdinalIgnoreCase) && role.Name.Equals("Customer", StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>One mobile number may exist under several roles (same table), so pick the account of the right role</summary>
@@ -91,7 +91,7 @@ public class AuthController : BaseController
 
         return Success(new
         {
-            Id=user.Id,
+            Id = user.Id,
             isPersonalDetailDone = string.IsNullOrEmpty(user.FirstName),
             AccessToken = accessToken,
             RefreshToken = session.RefreshToken,                  //the client must store this and replace it after every refresh
@@ -155,7 +155,8 @@ public class AuthController : BaseController
                 Address = null,
                 Remark = null,
                 CreatedOnUtc = DateTime.UtcNow,
-                UpdatedOnUtc = DateTime.UtcNow
+                UpdatedOnUtc = DateTime.UtcNow,
+                ApprovalStatusId = roleName == ProjectUserDefaults.CorporateRoleName ? 0 : 1,
             };
             await _userService.InsertUserAsync(newUser);
         }
@@ -241,6 +242,45 @@ public class AuthController : BaseController
     }
 
     #endregion
+    #region Customer corporate (OTP)
+
+    [HttpPost, AllowAnonymous]
+    public async Task<IActionResult> SendCorporateOtp([FromBody] SendOtpModel model) =>
+    await SendOtpAsync(CORPORATE_OTP_PURPOSE, model?.Mobile, ProjectUserDefaults.CorporateRoleName);
+
+    [HttpPost]
+    [AllowAnonymous]
+    public async Task<IActionResult> VerifyCorporateOtp([FromBody] VerifyOtpModel model)
+    {
+        var mobile = OtpService.NormalizeMobile(model?.Mobile);
+        if (mobile == null)
+            return Error(string.Empty, "Please enter a valid 10 digit mobile number");
+
+        var user = await FindUserByMobileAndRoleAsync(mobile, ProjectUserDefaults.UserRoleName);
+        if (user == null)
+            return Error(string.Empty, "Account not found. Please register first");
+
+        if (!user.Active || user.IsBanned)
+            return Error(string.Empty, "Your account is not active. Please contact support");
+
+        var isVerified = await _otpService.VerifyAsync(CORPORATE_OTP_PURPOSE, mobile, model.Otp);
+        if (!isVerified && !string.IsNullOrEmpty(user.OTP) && user.OTP == model.Otp?.Trim())
+        {
+            isVerified = true;
+        }
+
+        if (!isVerified)
+            return Error(string.Empty, "Invalid or expired OTP");
+
+
+
+        await _userService.UpdateUserAsync(user);
+
+        return await IssueTokensAsync(user, ProjectUserDefaults.UserRoleName, model.DeviceId, model.DeviceName, "Login successful");
+    }
+
+    #endregion
+
 
     #region Driver (OTP)
 

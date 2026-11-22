@@ -1,4 +1,5 @@
-﻿using Project.Admin.Infrastructure.Installation;
+﻿using Project.Admin.Factories;
+using Project.Admin.Infrastructure.Installation;
 using Project.Core.Infrastructure;
 
 namespace Project.Admin.Infrastructure;
@@ -19,7 +20,8 @@ public partial class ProjectStartup : IProjectStartup
         
 
         //installation localization service
-        services.AddScoped<IInstallationLocalizationService, InstallationLocalizationService>();  
+        services.AddScoped<IInstallationLocalizationService, InstallationLocalizationService>();
+        services.AddScoped<IUserRoleModelFactory, UserRoleModelFactory>();
     }
 
     /// <summary>

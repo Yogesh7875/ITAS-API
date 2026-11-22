@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Project.Admin.Models.Users;
+using Project.Core;
 using Project.Services.Users;
 using Project.Web.Framework;
 
@@ -10,23 +11,30 @@ public class UserController : BaseProtectedController
     #region Fields
 
     private readonly IUserService _userService;
+    private readonly IWorkContext _workContext;
 
     #endregion
 
     #region Constructor
 
-    public UserController(IUserService userService)
+    public UserController(IUserService userService, IWorkContext workContext)
     {
         _userService = userService;
+        _workContext = workContext;
     }
 
     #endregion
 
     #region Methods
     [HttpGet]
-    public async Task<IActionResult> GetCustomerPersonalDetails(long id)
+    public async Task<IActionResult> GetCustomerPersonalDetails()
     {
-        var user = await _userService.GetUserByIdAsync(id);
+        var workUser = await _workContext.GetCurrentUserAsync();
+        if (workUser == null)
+        {
+            return Error(string.Empty, "User not found");
+        }
+        var user = await _userService.GetUserByIdAsync(workUser.Id);
 
         if (user == null)
         {
@@ -53,7 +61,7 @@ public class UserController : BaseProtectedController
         }
         user.FirstName = model.FirstName;
         user.LastName = model.LastName;
-        user.EmailAddress = model.LastName;
+        user.EmailAddress = model.EmailAddress;
         user.UpdatedOnUtc = DateTime.UtcNow;
         await _userService.UpdateUserAsync(user);
         return Success(string.Empty, "User updated successfuly");
@@ -61,7 +69,12 @@ public class UserController : BaseProtectedController
     [HttpGet]
     public async Task<IActionResult>GetDriverUser(long id)
     {
-        var user = await _userService.GetUserByIdAsync(id);
+        var workUser = await _workContext.GetCurrentUserAsync();
+        if (workUser == null)
+        {
+            return Error(string.Empty, "User not found");
+        }
+        var user = await _userService.GetUserByIdAsync(workUser.Id);
 
         if (user == null)
         {
