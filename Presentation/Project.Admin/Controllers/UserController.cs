@@ -105,7 +105,7 @@ public class UserController : BaseProtectedController
         }
         user.FirstName = model.FirstName;
         user.LastName = model.LastName;
-        user.EmailAddress = model.LastName;
+        user.EmailAddress = model.EmailAddress;
         user.Dob = model.Dob;
         user.Gender = model.Gender;
         user.Address = model.Address;

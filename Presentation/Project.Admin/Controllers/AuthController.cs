@@ -1,5 +1,4 @@
 ﻿using System.Security.Claims;
-using ExCSS;
 using Google.Apis.Auth.OAuth2.Requests;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -256,7 +255,7 @@ public class AuthController : BaseController
         if (mobile == null)
             return Error(string.Empty, "Please enter a valid 10 digit mobile number");
 
-        var user = await FindUserByMobileAndRoleAsync(mobile, ProjectUserDefaults.UserRoleName);
+        var user = await FindUserByMobileAndRoleAsync(mobile, ProjectUserDefaults.CorporateRoleName);
         if (user == null)
             return Error(string.Empty, "Account not found. Please register first");
 
