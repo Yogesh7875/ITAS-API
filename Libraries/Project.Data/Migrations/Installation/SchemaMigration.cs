@@ -5,7 +5,7 @@ using Project.Data.Extensions;
 namespace Project.Data.Migrations.Installation;
 
 
-[ProjectSchemaMigration("2026/11/16 18:50:16:8799999", "Nop.Data base schema", MigrationProcessType.Installation)]
+[ProjectSchemaMigration("2026/11/21 18:50:16:8799999", "Nop.Data base schema", MigrationProcessType.Installation)]
 public class SchemaMigration : ForwardOnlyMigration
 {
     
@@ -39,7 +39,7 @@ public class SchemaMigration : ForwardOnlyMigration
         //    .AddColumn(nameof(User.Fcmtoken)).AsString(500).Nullable()
         //    .AddColumn(nameof(User.OTP)).AsString(10).Nullable();
 
-        Delete.Table(nameof(UserSession));
-        Create.TableFor<UserSession>();
+        //Create.TableFor<UserSession>();
+        Create.TableFor<Company>();
     }
 }

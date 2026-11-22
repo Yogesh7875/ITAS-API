@@ -109,6 +109,7 @@ public partial class ProjectStartup : IProjectStartup
         services.AddScoped<ILanguageService, LanguageService>();
         services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<IDepartmentService, DepartmentService>();
+        services.AddScoped<ICompanyService, CompanyService>();
         services.AddScoped<ILocalizationService, LocalizationService>();
         services.AddScoped<IScheduleTaskService, ScheduleTaskService>();
         services.AddScoped<ILocalizedEntityService, LocalizedEntityService>();

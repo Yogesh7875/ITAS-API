@@ -1,6 +1,4 @@
-﻿using System.Data;
-using FluentMigrator.Builders.Create.Table;
-using Project.Core.Domain.Catalog;
+﻿using FluentMigrator.Builders.Create.Table;
 using Project.Core.Domain.Users;
 using Project.Data.Extensions;
 
