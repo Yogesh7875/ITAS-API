@@ -65,6 +65,9 @@ public class UserController : BaseProtectedController
         if (workUser == null)
             return Error(string.Empty, "User not found");
         var user = await _userService.GetUserByIdAsync(workUser.Id);
+        if (user == null)
+            return Error(string.Empty, "User not found");
+
         user.FirstName = model.FirstName;
         user.LastName = model.LastName;
         user.EmailAddress = model.EmailAddress;
