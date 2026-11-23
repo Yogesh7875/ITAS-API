@@ -3,6 +3,7 @@ using Google.Apis.Auth.OAuth2.Requests;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Project.Admin.Models.Users;
+using Project.Core;
 using Project.Core.Domain.Users;
 using Project.Core.Security;
 using Project.Services.Authentication;
@@ -153,8 +154,8 @@ public class AuthController : BaseController
                 Gender = null,
                 Address = null,
                 Remark = null,
-                CreatedOnUtc = DateTime.UtcNow,
-                UpdatedOnUtc = DateTime.UtcNow,
+                CreatedOnUtc = CommonHelper.IndianTimeNow,
+                UpdatedOnUtc = CommonHelper.IndianTimeNow,
                 ApprovalStatusId = roleName == ProjectUserDefaults.CorporateRoleName ? 0 : 1,
             };
             await _userService.InsertUserAsync(newUser);
@@ -162,7 +163,7 @@ public class AuthController : BaseController
         else
         {
             existingUser.OTP = result.Otp;
-            existingUser.UpdatedOnUtc = DateTime.UtcNow;
+            existingUser.UpdatedOnUtc = CommonHelper.IndianTimeNow;
             if (existingUser.Deleted)
             {
                 existingUser.Deleted = false;
@@ -271,8 +272,9 @@ public class AuthController : BaseController
         if (!isVerified)
             return Error(string.Empty, "Invalid or expired OTP");
 
-
-
+        // clear OTP after successful verification
+        user.OTP = null;
+        user.UpdatedOnUtc = CommonHelper.IndianTimeNow;
         await _userService.UpdateUserAsync(user);
 
         return await IssueTokensAsync(user, ProjectUserDefaults.UserRoleName, model.DeviceId, model.DeviceName, "Login successful");
@@ -314,7 +316,7 @@ public class AuthController : BaseController
 
         // clear OTP after successful verification
         user.OTP = null;
-        user.UpdatedOnUtc = DateTime.UtcNow;
+        user.UpdatedOnUtc = CommonHelper.IndianTimeNow;
         await _userService.UpdateUserAsync(user);
 
         return await IssueTokensAsync(user, ProjectUserDefaults.DriverRoleName, model.DeviceId, model.DeviceName, "Login successful");

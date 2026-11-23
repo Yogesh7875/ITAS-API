@@ -93,4 +93,14 @@ public partial interface IDateTimeHelper
     {
         get;
     }
+
+    /// <summary>
+    /// Gets the Indian Standard Time (IST) time zone
+    /// </summary>
+    TimeZoneInfo IndianTimeZone { get; }
+
+    /// <summary>
+    /// Gets the current date and time in Indian Standard Time (IST)
+    /// </summary>
+    DateTime IndianTimeNow { get; }
 }

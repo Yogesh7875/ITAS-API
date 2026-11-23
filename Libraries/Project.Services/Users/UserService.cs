@@ -1,5 +1,6 @@
 ﻿using System.Data;
 using LinqToDB;
+using Project.Core;
 using Project.Core.Domain.Catalog;
 using Project.Core.Domain.Users;
 using Project.Data;
@@ -177,6 +178,11 @@ public class UserService : IUserService
     /// </returns>
     public async Task InsertUserAsync(User user)
     {
+        ArgumentNullException.ThrowIfNull(user);
+        if (user.CreatedOnUtc == default)
+            user.CreatedOnUtc = CommonHelper.IndianTimeNow;
+        if (user.UpdatedOnUtc == default)
+            user.UpdatedOnUtc = CommonHelper.IndianTimeNow;
         await _userRepository.InsertAsync(user);
     }
 
@@ -190,6 +196,8 @@ public class UserService : IUserService
     /// </returns>
     public async Task UpdateUserAsync(User user)
     {
+        ArgumentNullException.ThrowIfNull(user);
+        user.UpdatedOnUtc = CommonHelper.IndianTimeNow;
         await _userRepository.UpdateAsync(user);
     }
 

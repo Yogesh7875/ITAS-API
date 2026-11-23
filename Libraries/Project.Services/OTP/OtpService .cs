@@ -1,6 +1,7 @@
 ﻿using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Logging;
+using Project.Core;
 using Project.Core.Caching;
 using Project.Core.Configuration;
 using Project.Services.OTP.DataModel;
@@ -55,7 +56,7 @@ public class OtpService : IOtpService
     }
 
     private static int MinutesLeft(DateTime expiresAtUtc) =>
-        Math.Max(1, (int)Math.Ceiling((expiresAtUtc - DateTime.UtcNow).TotalMinutes));
+        Math.Max(1, (int)Math.Ceiling((expiresAtUtc - CommonHelper.IndianTimeNow).TotalMinutes));
 
     #endregion
 
@@ -75,7 +76,7 @@ public class OtpService : IOtpService
                 var existing = await _staticCacheManager.GetAsync<OtpRecord>(codeKey);
                 if (existing != null)
                 {
-                    var wait = config.ResendCooldownSeconds - (DateTime.UtcNow - existing.SentAtUtc).TotalSeconds;
+                    var wait = config.ResendCooldownSeconds - (CommonHelper.IndianTimeNow - existing.SentAtUtc).TotalSeconds;
                     if (wait > 0)
                     {
                         result = new OtpSendResult(OtpSendStatus.TooSoon, (int)Math.Ceiling(wait));
@@ -92,7 +93,7 @@ public class OtpService : IOtpService
 
                 var min = (int)Math.Pow(10, config.Length - 1);
                 var otp = RandomNumberGenerator.GetInt32(min, min * 10).ToString();
-                var now = DateTime.UtcNow;
+                var now = CommonHelper.IndianTimeNow;
 
                 codeKey.CacheTime = config.ExpiryMinutes;
                 await _staticCacheManager.SetAsync(codeKey, new OtpRecord
@@ -143,7 +144,7 @@ public class OtpService : IOtpService
                 var codeKey = _staticCacheManager.PrepareKeyForDefaultCache(OtpDefaults.OtpCodeCacheKey, purpose, mobile);
                 var record = await _staticCacheManager.GetAsync<OtpRecord>(codeKey);
 
-                if (record == null || record.ExpiresAtUtc <= DateTime.UtcNow)
+                if (record == null || record.ExpiresAtUtc <= CommonHelper.IndianTimeNow)
                     return; //expired or never sent
 
                 if (record.Attempts >= config.MaxVerifyAttempts)

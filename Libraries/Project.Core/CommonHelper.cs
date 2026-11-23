@@ -16,6 +16,29 @@ public partial class CommonHelper
     //we use regular expression based on RFC 5322 Official Standard (see https://emailregex.com/)
     private const string EMAIL_EXPRESSION = @"^(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|""(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*"")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])$";
 
+    private static readonly Lazy<TimeZoneInfo> _indianTimeZone = new(() =>
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("India Standard Time");
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+            }
+            catch (TimeZoneNotFoundException)
+            {
+                return TimeZoneInfo.CreateCustomTimeZone(
+                    "India Standard Time",
+                    new TimeSpan(5, 30, 0),
+                    "(UTC+05:30) Chennai, Kolkata, Mumbai, New Delhi",
+                    "India Standard Time");
+            }
+        }
+    });
+
     #endregion
 
     #region Methods
@@ -330,9 +353,35 @@ public partial class CommonHelper
         return date;
     }
 
+    /// <summary>
+    /// Converts a DateTime to Indian Standard Time (IST)
+    /// </summary>
+    /// <param name="dt">The DateTime to convert</param>
+    /// <returns>DateTime in Indian Standard Time</returns>
+    public static DateTime ConvertToIndianTime(DateTime dt)
+    {
+        if (dt.Kind == DateTimeKind.Utc)
+            return TimeZoneInfo.ConvertTimeFromUtc(dt, IndianTimeZone);
+
+        if (dt.Kind == DateTimeKind.Local)
+            return TimeZoneInfo.ConvertTime(dt, IndianTimeZone);
+
+        return TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(dt, DateTimeKind.Utc), IndianTimeZone);
+    }
+
     #endregion
 
     #region Properties
+
+    /// <summary>
+    /// Gets the Indian Standard Time (IST) time zone (UTC+05:30)
+    /// </summary>
+    public static TimeZoneInfo IndianTimeZone => _indianTimeZone.Value;
+
+    /// <summary>
+    /// Gets the current date and time in Indian Standard Time (IST)
+    /// </summary>
+    public static DateTime IndianTimeNow => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, IndianTimeZone);
 
     /// <summary>
     /// Gets or sets the default file provider

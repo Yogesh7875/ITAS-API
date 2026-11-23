@@ -133,6 +133,10 @@ public partial class CompanyService : ICompanyService
     public async Task InsertCompanyAsync(Company company)
     {
         ArgumentNullException.ThrowIfNull(company);
+        if (company.CreatedOnUtc == default)
+            company.CreatedOnUtc = CommonHelper.IndianTimeNow;
+        if (company.UpdatedOnUtc == default)
+            company.UpdatedOnUtc = CommonHelper.IndianTimeNow;
         await _companyRepository.InsertAsync(company);
     }
 
@@ -144,6 +148,7 @@ public partial class CompanyService : ICompanyService
     public async Task UpdateCompanyAsync(Company company)
     {
         ArgumentNullException.ThrowIfNull(company);
+        company.UpdatedOnUtc = CommonHelper.IndianTimeNow;
         await _companyRepository.UpdateAsync(company);
     }
 

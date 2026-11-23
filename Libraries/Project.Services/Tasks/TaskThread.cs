@@ -55,7 +55,7 @@ namespace Project.Services.Tasks
             if (Seconds <= 0)
                 return;
 
-            StartedUtc = DateTime.UtcNow;
+            StartedUtc = CommonHelper.IndianTimeNow;
             IsRunning = true;
             HttpClient client = null;
 

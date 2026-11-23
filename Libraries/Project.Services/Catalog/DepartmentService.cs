@@ -105,6 +105,11 @@ public class DepartmentService : IDepartmentService
     /// </returns>
     public async Task InsertDepartmentAsync(Department department)
     {
+        ArgumentNullException.ThrowIfNull(department);
+        if (department.CreatedOnUtc == default)
+            department.CreatedOnUtc = CommonHelper.IndianTimeNow;
+        if (department.UpdatedOnUtc == default)
+            department.UpdatedOnUtc = CommonHelper.IndianTimeNow;
         await _departmentRepository.InsertAsync(department);
     }
 
@@ -118,6 +123,8 @@ public class DepartmentService : IDepartmentService
     /// </returns>
     public async Task UpdateDepartmentAsync(Department department)
     {
+        ArgumentNullException.ThrowIfNull(department);
+        department.UpdatedOnUtc = CommonHelper.IndianTimeNow;
         await _departmentRepository.UpdateAsync(department);
     }
 

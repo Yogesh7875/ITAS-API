@@ -113,6 +113,11 @@ public class UserRoleService : IUserRoleService
     /// </returns>
     public async Task InsertUserRoleAsync(UserRole userRole)
     {
+        ArgumentNullException.ThrowIfNull(userRole);
+        if (userRole.CreatedOnUtc == default)
+            userRole.CreatedOnUtc = CommonHelper.IndianTimeNow;
+        if (userRole.UpdatedOnUtc == default)
+            userRole.UpdatedOnUtc = CommonHelper.IndianTimeNow;
         await _userRoleRepository.InsertAsync(userRole);
     }
 
@@ -126,6 +131,8 @@ public class UserRoleService : IUserRoleService
     /// </returns>
     public async Task UpdateUserRoleAsync(UserRole userRole)
     {
+        ArgumentNullException.ThrowIfNull(userRole);
+        userRole.UpdatedOnUtc = CommonHelper.IndianTimeNow;
         await _userRoleRepository.UpdateAsync(userRole);
     }
 

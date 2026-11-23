@@ -23,5 +23,5 @@ public class UserSession : BaseEntity
     /// </summary>
     public bool IsSingleDevice { get; set; } = true;
 
-    public bool IsActive => RevokedOnUtc == null && ExpiresAtUtc > DateTime.UtcNow;
+    public bool IsActive => RevokedOnUtc == null && ExpiresAtUtc > CommonHelper.IndianTimeNow;
 }

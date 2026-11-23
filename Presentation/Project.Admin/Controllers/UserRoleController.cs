@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Project.Admin.Factories;
 using Project.Admin.Models;
 using Project.Admin.Models.Catalog;
+using Project.Core;
 using Project.Core.Domain.Catalog;
 using Project.Services.Catalog;
 using Project.Web.Framework;
@@ -70,8 +71,8 @@ public class UserRoleController : BaseProtectedController
             return Error(string.Empty, "User role name is already exist.");
 
         var userRole = model.ToEntity<UserRole>();
-        userRole.CreatedOnUtc = DateTime.UtcNow;
-        userRole.UpdatedOnUtc = DateTime.UtcNow;
+        userRole.CreatedOnUtc = CommonHelper.IndianTimeNow;
+        userRole.UpdatedOnUtc = CommonHelper.IndianTimeNow;
         userRole.Active = true;
 
         await _userRoleService.InsertUserRoleAsync(userRole);
@@ -99,7 +100,7 @@ public class UserRoleController : BaseProtectedController
         }
 
         userRole = model.ToEntity<UserRole>();
-        userRole.UpdatedOnUtc = DateTime.UtcNow;
+        userRole.UpdatedOnUtc = CommonHelper.IndianTimeNow;
         userRole.Active = true;
         //update user role
         await _userRoleService.UpdateUserRoleAsync(userRole);

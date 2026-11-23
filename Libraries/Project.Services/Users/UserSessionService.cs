@@ -3,6 +3,7 @@ using System.Text;
 using LinqToDB;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
+using Project.Core;
 using Project.Core.Caching;
 using Project.Core.Configuration;
 using Project.Core.Domain.Users;
@@ -66,7 +67,7 @@ public class UserSessionService : IUserSessionService
 
     private async Task SetActiveCacheAsync(UserSession session)
     {
-        var remaining = (session.ExpiresAtUtc - DateTime.UtcNow).TotalMinutes;
+        var remaining = (session.ExpiresAtUtc - CommonHelper.IndianTimeNow).TotalMinutes;
         var minutes = (int)Math.Ceiling(Math.Min(remaining, UserSessionDefaults.ActiveSessionCacheMinutes));
         if (minutes <= 0)
             return;
@@ -104,7 +105,7 @@ public class UserSessionService : IUserSessionService
         var appType = Clean(info.AppType, DEFAULT_APP_TYPE, 50).ToLowerInvariant();
         var singleDevice = !info.MultiDeviceLoginEnabled;
         var refreshToken = GenerateRefreshToken();
-        var now = DateTime.UtcNow;
+        var now = CommonHelper.IndianTimeNow;
 
         var session = new UserSession
         {
@@ -163,7 +164,7 @@ public class UserSessionService : IUserSessionService
             return null;
 
         var hash = Hash(refreshToken.Trim());
-        var now = DateTime.UtcNow;
+        var now = CommonHelper.IndianTimeNow;
 
         var matches = await _sessionRepository.GetAllAsync(query =>
             query.Where(s => s.RefreshTokenHash == hash || s.PreviousRefreshTokenHash == hash));
@@ -228,7 +229,7 @@ public class UserSessionService : IUserSessionService
         //both conditions: a caller can only revoke their own session
         var revoked = await _sessionRepository.Table
             .Where(s => s.UserId == userId && s.SessionId == sessionId && s.RevokedOnUtc == null)
-            .Set(s => s.RevokedOnUtc, (DateTime?)DateTime.UtcNow)
+            .Set(s => s.RevokedOnUtc, (DateTime?)CommonHelper.IndianTimeNow)
             .Set(s => s.RevokedReason, reason)
             .UpdateAsync();
 
@@ -245,7 +246,7 @@ public class UserSessionService : IUserSessionService
         if (await _staticCacheManager.GetAsync<bool>(key))
             return true;
 
-        var now = DateTime.UtcNow;
+        var now = CommonHelper.IndianTimeNow;
         var sessions = await _sessionRepository.GetAllAsync(query => query.Where(s => s.UserId == userId && s.SessionId == sessionId && s.RevokedOnUtc == null && s.ExpiresAtUtc > now));
         var session = sessions.FirstOrDefault();
 
@@ -261,7 +262,7 @@ public class UserSessionService : IUserSessionService
     /// </summary>
     public async Task CleanupAsync(int retentionDays = 30)
     {
-        var cutoff = DateTime.UtcNow.AddDays(-retentionDays);
+        var cutoff = CommonHelper.IndianTimeNow.AddDays(-retentionDays);
 
         var deleted = await _sessionRepository.DeleteAsync(s => (s.RevokedOnUtc != null && s.RevokedOnUtc < cutoff) || s.ExpiresAtUtc < cutoff);
 

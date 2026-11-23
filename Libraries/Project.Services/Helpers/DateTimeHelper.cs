@@ -36,7 +36,21 @@ public partial class DateTimeHelper : IDateTimeHelper
     /// <returns>A System.TimeZoneInfo object whose identifier is the value of the id parameter.</returns>
     protected virtual TimeZoneInfo FindTimeZoneById(string id)
     {
-        return TimeZoneInfo.FindSystemTimeZoneById(id);
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById(id);
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            if (id.Equals("India Standard Time", StringComparison.OrdinalIgnoreCase) ||
+                id.Equals("Asia/Kolkata", StringComparison.OrdinalIgnoreCase) ||
+                id.Equals("Asia/Calcutta", StringComparison.OrdinalIgnoreCase))
+            {
+                return CommonHelper.IndianTimeZone;
+            }
+
+            throw;
+        }
     }
 
     #endregion
@@ -76,12 +90,14 @@ public partial class DateTimeHelper : IDateTimeHelper
     /// </returns>
     public virtual async Task<DateTime> ConvertToUserTimeAsync(DateTime dt, DateTimeKind sourceDateTimeKind)
     {
-        dt = DateTime.SpecifyKind(dt, sourceDateTimeKind);
-        if (sourceDateTimeKind == DateTimeKind.Local && TimeZoneInfo.Local.IsInvalidTime(dt))
-            return dt;
+        if (sourceDateTimeKind == DateTimeKind.Utc)
+        {
+            var currentUserTimeZoneInfo = await GetCurrentTimeZoneAsync();
+            return TimeZoneInfo.ConvertTimeFromUtc(dt, currentUserTimeZoneInfo);
+        }
 
-        var currentUserTimeZoneInfo = await GetCurrentTimeZoneAsync();
-        return TimeZoneInfo.ConvertTime(dt, currentUserTimeZoneInfo);
+        // In this project, datetimes are stored and maintained in Indian Standard Time
+        return dt;
     }
 
     /// <summary>
@@ -117,11 +133,10 @@ public partial class DateTimeHelper : IDateTimeHelper
     /// <returns>A DateTime value that represents the Coordinated Universal Time (UTC) that corresponds to the dateTime parameter. The DateTime value's Kind property is always set to DateTimeKind.Utc.</returns>
     public virtual DateTime ConvertToUtcTime(DateTime dt, DateTimeKind sourceDateTimeKind)
     {
-        dt = DateTime.SpecifyKind(dt, sourceDateTimeKind);
-        if (sourceDateTimeKind == DateTimeKind.Local && TimeZoneInfo.Local.IsInvalidTime(dt))
+        if (sourceDateTimeKind == DateTimeKind.Utc)
             return dt;
 
-        return TimeZoneInfo.ConvertTimeToUtc(dt);
+        return TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(dt, DateTimeKind.Unspecified), CommonHelper.IndianTimeZone);
     }
 
     /// <summary>
@@ -192,9 +207,19 @@ public partial class DateTimeHelper : IDateTimeHelper
                 //ignore
             }
 
-            return timeZoneInfo ?? TimeZoneInfo.Local;
+            return timeZoneInfo ?? CommonHelper.IndianTimeZone;
         }
     }
+
+    /// <summary>
+    /// Gets the Indian Standard Time (IST) time zone
+    /// </summary>
+    public virtual TimeZoneInfo IndianTimeZone => CommonHelper.IndianTimeZone;
+
+    /// <summary>
+    /// Gets the current date and time in Indian Standard Time (IST)
+    /// </summary>
+    public virtual DateTime IndianTimeNow => CommonHelper.IndianTimeNow;
 
     #endregion
 }

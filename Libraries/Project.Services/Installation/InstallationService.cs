@@ -122,8 +122,8 @@ public partial class InstallationService : IInstallationService
                     CustomFormatting = string.Empty,
                     Published = false,
                     DisplayOrder = 12,
-                    CreatedOnUtc = DateTime.UtcNow,
-                    UpdatedOnUtc = DateTime.UtcNow,
+                    CreatedOnUtc = CommonHelper.IndianTimeNow,
+                    UpdatedOnUtc = CommonHelper.IndianTimeNow,
                     RoundingType = RoundingType.Rounding001
                 }
             };
@@ -142,8 +142,8 @@ public partial class InstallationService : IInstallationService
                     CustomFormatting = string.Empty,
                     Published = true,
                     DisplayOrder = 0,
-                    CreatedOnUtc = DateTime.UtcNow,
-                    UpdatedOnUtc = DateTime.UtcNow,
+                    CreatedOnUtc = CommonHelper.IndianTimeNow,
+                    UpdatedOnUtc = CommonHelper.IndianTimeNow,
                     RoundingType = RoundingType.Rounding001
                 });
             }
@@ -166,8 +166,8 @@ public partial class InstallationService : IInstallationService
             Name = ProjectUserDefaults.AdministratorsRoleName,
             SystemName = ProjectUserDefaults.AdministratorsRoleName,
             Active = true,
-            CreatedOnUtc = DateTime.Now,
-            UpdatedOnUtc = DateTime.Now,
+            CreatedOnUtc = CommonHelper.IndianTimeNow,
+            UpdatedOnUtc = CommonHelper.IndianTimeNow,
         });
     }
 
@@ -183,8 +183,8 @@ public partial class InstallationService : IInstallationService
             RoleId = userRole.Id,
             FirstName = defaultUserEmail,
             MobileNumber = string.Empty,
-            CreatedOnUtc = DateTime.Now,
-            UpdatedOnUtc = DateTime.Now,
+            CreatedOnUtc = CommonHelper.IndianTimeNow,
+            UpdatedOnUtc = CommonHelper.IndianTimeNow,
             EmailAddress = defaultUserEmail,
             Password=defaultUserPassword
 

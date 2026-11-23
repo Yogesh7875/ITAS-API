@@ -72,7 +72,7 @@ public partial class DefaultLogger : ILogger
             UserId = user?.Id,
             PageUrl = _webHelper.GetThisPageUrl(true),
             ReferrerUrl = _webHelper.GetUrlReferrer(),
-            CreatedOnUtc = DateTime.UtcNow
+            CreatedOnUtc = CommonHelper.IndianTimeNow
         };
     }
 

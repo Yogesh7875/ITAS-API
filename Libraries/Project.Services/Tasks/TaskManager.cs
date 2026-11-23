@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using Project.Core;
 using Project.Core.Infrastructure;
 
 namespace Project.Services.Tasks
@@ -53,7 +54,7 @@ namespace Project.Services.Tasks
                 if (scheduleTask.LastStartUtc.HasValue)
                 {
                     //seconds left since the last start
-                    var secondsLeft = (DateTime.UtcNow - scheduleTask.LastStartUtc).Value.TotalSeconds;
+                    var secondsLeft = (CommonHelper.IndianTimeNow - scheduleTask.LastStartUtc).Value.TotalSeconds;
 
                     if (secondsLeft >= scheduleTask.Seconds)
                         //run now (immediately)

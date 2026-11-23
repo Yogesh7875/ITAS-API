@@ -74,11 +74,11 @@ namespace Project.Services.Tasks
             if (instance is not IScheduleTask task)
                 return Theading.Task.CompletedTask;
 
-            ScheduleTask.LastStartUtc = DateTime.UtcNow;
+            ScheduleTask.LastStartUtc = CommonHelper.IndianTimeNow;
             //update appropriate datetime properties
             scheduleTaskService.UpdateTaskAsync(ScheduleTask).Wait();
             task.ExecuteAsync().Wait();
-            ScheduleTask.LastEndUtc = ScheduleTask.LastSuccessUtc = DateTime.UtcNow;
+            ScheduleTask.LastEndUtc = ScheduleTask.LastSuccessUtc = CommonHelper.IndianTimeNow;
             //update appropriate datetime properties
             scheduleTaskService.UpdateTaskAsync(ScheduleTask).Wait();
 
@@ -96,14 +96,14 @@ namespace Project.Services.Tasks
             if (!scheduleTask.LastStartUtc.HasValue && !scheduleTask.LastEndUtc.HasValue)
                 return false;
 
-            var lastStartUtc = scheduleTask.LastStartUtc ?? DateTime.UtcNow;
+            var lastStartUtc = scheduleTask.LastStartUtc ?? CommonHelper.IndianTimeNow;
 
             //task already finished
             if (scheduleTask.LastEndUtc.HasValue && lastStartUtc < scheduleTask.LastEndUtc)
                 return false;
 
             //task wasn't finished last time
-            if (lastStartUtc.AddSeconds(scheduleTask.Seconds) <= DateTime.UtcNow)
+            if (lastStartUtc.AddSeconds(scheduleTask.Seconds) <= CommonHelper.IndianTimeNow)
                 return false;
 
             return true;
@@ -130,7 +130,7 @@ namespace Project.Services.Tasks
                     return;
 
                 //validation (so nobody else can invoke this method when he wants)
-                if (ScheduleTask.LastStartUtc.HasValue && (DateTime.UtcNow - ScheduleTask.LastStartUtc).Value.TotalSeconds < ScheduleTask.Seconds)
+                if (ScheduleTask.LastStartUtc.HasValue && (CommonHelper.IndianTimeNow - ScheduleTask.LastStartUtc).Value.TotalSeconds < ScheduleTask.Seconds)
                     //too early
                     return;
             }
@@ -154,7 +154,7 @@ namespace Project.Services.Tasks
                 var scheduleTaskUrl = $"{commonConfig.DomainUrl.TrimEnd('/')}/{NopTaskDefaults.ScheduleTaskPath}";
 
                 ScheduleTask.Enabled = !ScheduleTask.StopOnError;
-                ScheduleTask.LastEndUtc = DateTime.UtcNow;
+                ScheduleTask.LastEndUtc = CommonHelper.IndianTimeNow;
                 await scheduleTaskService.UpdateTaskAsync(ScheduleTask);
 
                 var message = string.Format(await localizationService.GetResourceAsync("ScheduleTasks.Error"), ScheduleTask.Name,
