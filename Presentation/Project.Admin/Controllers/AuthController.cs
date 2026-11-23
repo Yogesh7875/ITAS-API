@@ -93,6 +93,8 @@ public class AuthController : BaseController
         {
             Id = user.Id,
             isPersonalDetailDone = string.IsNullOrEmpty(user.FirstName),
+            ApprovalStatus=user.ApprovalStatusId,
+            CompanyId=user.CompanyId,
             AccessToken = accessToken,
             RefreshToken = session.RefreshToken,                  //the client must store this and replace it after every refresh
             RefreshTokenExpiresAtUtc = session.RefreshExpiresAtUtc,
@@ -235,7 +237,7 @@ public class AuthController : BaseController
             return Error(string.Empty, "Invalid or expired OTP");
 
 
-
+        user.OTP = null;
         await _userService.UpdateUserAsync(user);
 
         return await IssueTokensAsync(user, ProjectUserDefaults.UserRoleName, model.DeviceId, model.DeviceName, "Login successful");
@@ -277,7 +279,7 @@ public class AuthController : BaseController
         user.UpdatedOnUtc = CommonHelper.IndianTimeNow;
         await _userService.UpdateUserAsync(user);
 
-        return await IssueTokensAsync(user, ProjectUserDefaults.UserRoleName, model.DeviceId, model.DeviceName, "Login successful");
+        return await IssueTokensAsync(user, ProjectUserDefaults.CorporateRoleName, model.DeviceId, model.DeviceName, "Login successful");
     }
 
     #endregion

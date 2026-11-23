@@ -31,6 +31,8 @@ public class UserBuilder : ProjectEntityBuilder<User>
             .WithColumn(nameof(User.Gender)).AsString(50).Nullable()
             .WithColumn(nameof(User.Address)).AsString(500).Nullable()
             .WithColumn(nameof(User.OTP)).AsString(10).Nullable()
+            .WithColumn(nameof(User.CompanyId)).AsInt64().Nullable().ForeignKey<Company>().OnDeleteOrUpdate(Rule.None)
+            .WithColumn(nameof(User.ApprovalStatusId)).AsBoolean().NotNullable().WithDefaultValue(true)
             .WithColumn(nameof(User.RoleId)).AsInt64().NotNullable().ForeignKey<UserRole>().OnDeleteOrUpdate(Rule.None);
     }
 

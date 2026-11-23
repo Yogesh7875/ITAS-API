@@ -61,11 +61,10 @@ public class UserController : BaseProtectedController
     [HttpPost]
     public async Task<IActionResult> UpdateUserPersonalDetail(UserPersonalDetails model)
     {
-        var user = await _userService.GetUserByIdAsync(model.Id);
-        if (user == null)
-        {
+        var workUser = await _workContext.GetCurrentUserAsync();
+        if (workUser == null)
             return Error(string.Empty, "User not found");
-        }
+        var user = await _userService.GetUserByIdAsync(workUser.Id);
         user.FirstName = model.FirstName;
         user.LastName = model.LastName;
         user.EmailAddress = model.EmailAddress;
@@ -105,11 +104,11 @@ public class UserController : BaseProtectedController
     [HttpPost]
     public async Task<IActionResult> UpdateDriverPersonalDetails(UserModel model)
     {
-        var user = await _userService.GetUserByIdAsync(model.Id);
-        if (user == null)
-        {
+        var workUser = await _workContext.GetCurrentUserAsync();
+        if (workUser == null)
             return Error(string.Empty, "User not found");
-        }
+        var user = await _userService.GetUserByIdAsync(workUser.Id);
+
         user.FirstName = model.FirstName;
         user.LastName = model.LastName;
         user.EmailAddress = model.EmailAddress;

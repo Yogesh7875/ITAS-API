@@ -1,4 +1,4 @@
-using LinqToDB;
+﻿using LinqToDB;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Project.Core;
 using Project.Core.Caching;
@@ -44,7 +44,7 @@ public partial class CompanyService : ICompanyService
     public async Task<IList<SelectListDataModel>> GetSelectDataModelListAsync()
     {
         var query = from c in _companyRepository.Table
-                    where c.Deleted == false
+                    where c.Deleted == false && c.Active
                     orderby c.Name
                     select new SelectListDataModel
                     {
@@ -68,7 +68,7 @@ public partial class CompanyService : ICompanyService
         var list = await _staticCacheManager.GetAsync(cacheKey, async () =>
         {
             var query = _companyRepository.Table
-                .Where(c => !c.Deleted)
+                .Where(c => c.Deleted == false && c.Active)
                 .OrderBy(c => c.Name)
                 .Select(c => new SelectListItem
                 {
