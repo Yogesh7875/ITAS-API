@@ -57,17 +57,20 @@ public partial class DriverOnboardingService : IDriverOnboardingService
     private async Task<DriverProfile> GetProfileAsync(long userId) =>
         await _profiles.Table.FirstOrDefaultAsync(p => p.UserId == userId && !p.Deleted);
 
-    private async Task<DriverProfile> GetOrCreateProfileAsync(long userId)
+    private async Task<DriverProfile> GetOrCreateProfileAsync(long userId, long? operatorUserId = null)
     {
         var profile = await GetProfileAsync(userId);
         if (profile != null)
             return profile;
 
+        var opId = operatorUserId ?? userId;
         profile = new DriverProfile
         {
             UserId = userId,
             OnboardingStatus = DriverOnboardingStatus.Draft,
+            CreatedBy = opId,
             CreatedOnUtc = Now,
+            UpdatedBy = opId,
             UpdatedOnUtc = Now
         };
         await _profiles.InsertAsync(profile);
@@ -86,13 +89,14 @@ public partial class DriverOnboardingService : IDriverOnboardingService
     }
 
     /// <summary>Any change to an approved driver's vehicle or documents needs a fresh review.</summary>
-    private async Task ResetApprovalIfApprovedAsync(long userId)
+    private async Task ResetApprovalIfApprovedAsync(long userId, long? operatorUserId = null)
     {
         var profile = await GetProfileAsync(userId);
         if (profile == null || profile.OnboardingStatusId != (int)DriverOnboardingStatus.Approved)
             return;
 
         profile.OnboardingStatus = DriverOnboardingStatus.Draft;
+        profile.UpdatedBy = operatorUserId ?? userId;
         profile.UpdatedOnUtc = Now;
         await _profiles.UpdateAsync(profile);
         await SetUserApprovalAsync(userId, 0);
@@ -133,8 +137,10 @@ public partial class DriverOnboardingService : IDriverOnboardingService
         await _vehicles.Table.FirstOrDefaultAsync(v => v.UserId == userId && !v.Deleted);
 
     public async Task SaveVehicleAsync(long userId, long vehicleCategoryId, string registrationNumber,
-        string make, string model, int? year, string color)
+        string make, string model, int? year, string color, long? operatorUserId = null)
     {
+        var opId = operatorUserId ?? userId;
+
         if (string.IsNullOrWhiteSpace(registrationNumber))
             throw new OnboardingException("Enter the vehicle registration number");
 
@@ -150,7 +156,12 @@ public partial class DriverOnboardingService : IDriverOnboardingService
         var vehicle = await GetVehicleAsync(userId);
         if (vehicle == null)
         {
-            vehicle = new DriverVehicle { UserId = userId, CreatedOnUtc = Now };
+            vehicle = new DriverVehicle
+            {
+                UserId = userId,
+                CreatedBy = opId,
+                CreatedOnUtc = Now
+            };
             apply(vehicle);
             await _vehicles.InsertAsync(vehicle);
         }
@@ -160,8 +171,8 @@ public partial class DriverOnboardingService : IDriverOnboardingService
             await _vehicles.UpdateAsync(vehicle);
         }
 
-        await GetOrCreateProfileAsync(userId);
-        await ResetApprovalIfApprovedAsync(userId);
+        await GetOrCreateProfileAsync(userId, opId);
+        await ResetApprovalIfApprovedAsync(userId, opId);
 
         void apply(DriverVehicle v)
         {
@@ -171,6 +182,7 @@ public partial class DriverOnboardingService : IDriverOnboardingService
             v.Model = model?.Trim();
             v.Year = year;
             v.Color = color?.Trim();
+            v.UpdatedBy = opId;
             v.UpdatedOnUtc = Now;
         }
     }
@@ -238,8 +250,9 @@ public partial class DriverOnboardingService : IDriverOnboardingService
     }
 
     public async Task SaveDocumentAsync(long userId, long documentTypeId, string documentNumber,
-        DateTime? expiryDate, IList<UploadedFile> files)
+        DateTime? expiryDate, IList<UploadedFile> files, long? operatorUserId = null)
     {
+        var opId = operatorUserId ?? userId;
         var type = await _types.Table.FirstOrDefaultAsync(t =>
             t.Id == documentTypeId && !t.Deleted && t.Active);
         if (type == null)
@@ -315,7 +328,13 @@ public partial class DriverOnboardingService : IDriverOnboardingService
 
         if (doc == null)
         {
-            doc = new UserDocument { UserId = userId, DocumentTypeId = type.Id, CreatedOnUtc = Now };
+            doc = new UserDocument
+            {
+                UserId = userId,
+                DocumentTypeId = type.Id,
+                CreatedBy = opId,
+                CreatedOnUtc = Now
+            };
             applyDoc(doc);
             await _documents.InsertAsync(doc);
         }
@@ -336,12 +355,13 @@ public partial class DriverOnboardingService : IDriverOnboardingService
                 FileName = sf.FileName,
                 ContentType = sf.ContentType,
                 SizeBytes = sf.SizeBytes,
+                CreatedBy = opId,
                 CreatedOnUtc = Now
             });
         }
 
-        await GetOrCreateProfileAsync(userId);
-        await ResetApprovalIfApprovedAsync(userId);
+        await GetOrCreateProfileAsync(userId, opId);
+        await ResetApprovalIfApprovedAsync(userId, opId);
 
         void applyDoc(UserDocument d)
         {
@@ -351,6 +371,7 @@ public partial class DriverOnboardingService : IDriverOnboardingService
             d.RejectionReason = null;
             d.ReviewedByUserId = null;
             d.ReviewedOnUtc = null;
+            d.UpdatedBy = opId;
             d.UpdatedOnUtc = Now;
         }
     }
@@ -405,8 +426,9 @@ public partial class DriverOnboardingService : IDriverOnboardingService
         };
     }
 
-    public async Task SubmitForReviewAsync(long userId)
+    public async Task SubmitForReviewAsync(long userId, long? operatorUserId = null)
     {
+        var opId = operatorUserId ?? userId;
         var summary = await GetSummaryAsync(userId);
         if (summary.Status == DriverOnboardingStatus.Submitted.ToString())
             throw new OnboardingException("Your details are already under review");
@@ -415,10 +437,11 @@ public partial class DriverOnboardingService : IDriverOnboardingService
         if (!summary.CanSubmit)
             throw new OnboardingException("Please complete your profile, vehicle and all required documents, and fix any rejected ones");
 
-        var profile = await GetOrCreateProfileAsync(userId);
+        var profile = await GetOrCreateProfileAsync(userId, opId);
         profile.OnboardingStatus = DriverOnboardingStatus.Submitted;
         profile.SubmittedOnUtc = Now;
         profile.RejectionReason = null;
+        profile.UpdatedBy = opId;
         profile.UpdatedOnUtc = Now;
         await _profiles.UpdateAsync(profile);
         await SetUserApprovalAsync(userId, 0);
@@ -458,6 +481,7 @@ public partial class DriverOnboardingService : IDriverOnboardingService
         doc.RejectionReason = approve ? null : reason.Trim();
         doc.ReviewedByUserId = reviewerUserId;
         doc.ReviewedOnUtc = Now;
+        doc.UpdatedBy = reviewerUserId;
         doc.UpdatedOnUtc = Now;
         await _documents.UpdateAsync(doc);
     }
@@ -487,6 +511,7 @@ public partial class DriverOnboardingService : IDriverOnboardingService
         profile.RejectionReason = approve ? null : reason.Trim();
         profile.ReviewedByUserId = reviewerUserId;
         profile.ReviewedOnUtc = Now;
+        profile.UpdatedBy = reviewerUserId;
         profile.UpdatedOnUtc = Now;
         await _profiles.UpdateAsync(profile);
 

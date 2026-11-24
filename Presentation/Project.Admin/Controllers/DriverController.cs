@@ -1,8 +1,6 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Project.Admin.Models.Drivers;
 using Project.Core;
-using Project.Core.Domain.Users;
-using Project.Services.Catalog;
 using Project.Services.Drivers;
 using Project.Web.Framework;
 
@@ -14,34 +12,16 @@ public class DriverController : BaseProtectedController
     #region Fields
 
     private readonly IWorkContext _workContext;
-    private readonly IUserRoleService _userRoleService;
     private readonly IDriverOnboardingService _onboardingService;
 
     #endregion
 
     #region Constructor
 
-    public DriverController(IWorkContext workContext,
-        IUserRoleService userRoleService,
-        IDriverOnboardingService onboardingService)
+    public DriverController(IWorkContext workContext, IDriverOnboardingService onboardingService)
     {
         _workContext = workContext;
-        _userRoleService = userRoleService;
         _onboardingService = onboardingService;
-    }
-
-    #endregion
-
-    #region Utilities
-
-    private async Task<User> GetDriverAsync()
-    {
-        var user = await _workContext.GetCurrentUserAsync();
-        if (user == null)
-            return null;
-
-        var role = await _userRoleService.GetUserRoleByNameAsync(ProjectUserDefaults.DriverRoleName);
-        return role != null && user.RoleId == role.Id ? user : null;
     }
 
     #endregion
@@ -51,9 +31,9 @@ public class DriverController : BaseProtectedController
     [HttpGet]
     public async Task<IActionResult> GetOnboardingStatus()
     {
-        var driver = await GetDriverAsync();
+        var driver = await _workContext.GetCurrentUserAsync();
         if (driver == null)
-            return Error(string.Empty, "Only drivers can use this");
+            return Error(string.Empty, "User not found.");
 
         return Success(await _onboardingService.GetSummaryAsync(driver.Id));
     }
@@ -61,9 +41,9 @@ public class DriverController : BaseProtectedController
     [HttpGet]
     public async Task<IActionResult> GetDocumentRequirements()
     {
-        var driver = await GetDriverAsync();
+        var driver = await _workContext.GetCurrentUserAsync();
         if (driver == null)
-            return Error(string.Empty, "Only drivers can use this");
+            return Error(string.Empty, "User not found.");
 
         return Success(await _onboardingService.GetRequirementsAsync(driver.Id));
     }
@@ -71,9 +51,9 @@ public class DriverController : BaseProtectedController
     [HttpGet]
     public async Task<IActionResult> GetVehicle()
     {
-        var driver = await GetDriverAsync();
+        var driver = await _workContext.GetCurrentUserAsync();
         if (driver == null)
-            return Error(string.Empty, "Only drivers can use this");
+            return Error(string.Empty, "User not found.");
 
         var v = await _onboardingService.GetVehicleAsync(driver.Id);
         return Success(new DriverVehicleModel
@@ -90,14 +70,14 @@ public class DriverController : BaseProtectedController
     [HttpPost]
     public async Task<IActionResult> SaveVehicle(DriverVehicleModel model)
     {
-        var driver = await GetDriverAsync();
+        var driver = await _workContext.GetCurrentUserAsync();
         if (driver == null)
-            return Error(string.Empty, "Only drivers can use this");
+            return Error(string.Empty, "User not found.");
 
         try
         {
             await _onboardingService.SaveVehicleAsync(driver.Id, model.VehicleCategoryId,
-                model.RegistrationNumber, model.Make, model.Model, model.Year, model.Color);
+                model.RegistrationNumber, model.Make, model.Model, model.Year, model.Color, driver.Id);
             return Success(string.Empty, "Vehicle saved");
         }
         catch (OnboardingException ex)
@@ -110,9 +90,9 @@ public class DriverController : BaseProtectedController
     [RequestSizeLimit(20 * 1024 * 1024)]
     public async Task<IActionResult> UploadDocument([FromForm] UploadDocumentModel model)
     {
-        var driver = await GetDriverAsync();
+        var driver = await _workContext.GetCurrentUserAsync();
         if (driver == null)
-            return Error(string.Empty, "Only drivers can use this");
+            return Error(string.Empty, "User not found.");
 
         var files = new List<UploadedFile>();
         try
@@ -136,7 +116,7 @@ public class DriverController : BaseProtectedController
             }
 
             await _onboardingService.SaveDocumentAsync(driver.Id, model.DocumentTypeId,
-                model.DocumentNumber, model.ExpiryDate, files);
+                model.DocumentNumber, model.ExpiryDate, files, driver.Id);
             return Success(string.Empty, "Document uploaded");
         }
         catch (OnboardingException ex)
@@ -153,13 +133,13 @@ public class DriverController : BaseProtectedController
     [HttpPost]
     public async Task<IActionResult> SubmitForReview()
     {
-        var driver = await GetDriverAsync();
+        var driver = await _workContext.GetCurrentUserAsync();
         if (driver == null)
-            return Error(string.Empty, "Only drivers can use this");
+            return Error(string.Empty, "User not found.");
 
         try
         {
-            await _onboardingService.SubmitForReviewAsync(driver.Id);
+            await _onboardingService.SubmitForReviewAsync(driver.Id, driver.Id);
             return Success(string.Empty, "Submitted for review");
         }
         catch (OnboardingException ex)

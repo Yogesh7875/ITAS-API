@@ -60,10 +60,18 @@ public class DocumentTypeController : BaseProtectedController
         entity.DisplayOrder = model.DisplayOrder;
         entity.Active = model.Active;
 
+        var currentAdmin = await _workContext.GetCurrentUserAsync();
+        entity.UpdatedBy = currentAdmin?.Id;
+
         if (entity.Id == 0)
+        {
+            entity.CreatedBy = currentAdmin?.Id ?? 0;
             await _documentTypeService.InsertDocumentTypeAsync(entity);
+        }
         else
+        {
             await _documentTypeService.UpdateDocumentTypeAsync(entity);
+        }
 
         return Success(new { entity.Id }, "Saved");
     }
@@ -77,6 +85,10 @@ public class DocumentTypeController : BaseProtectedController
         var entity = await _documentTypeService.GetDocumentTypeByIdAsync(id);
         if (entity == null || entity.Deleted)
             return Error(string.Empty, "Document type not found");
+
+        var currentAdmin = await _workContext.GetCurrentUserAsync();
+        entity.UpdatedBy = currentAdmin?.Id;
+        entity.UpdatedOnUtc = CommonHelper.IndianTimeNow;
 
         await _documentTypeService.DeleteDocumentTypeAsync(entity);
         return Success(string.Empty, "Deleted");

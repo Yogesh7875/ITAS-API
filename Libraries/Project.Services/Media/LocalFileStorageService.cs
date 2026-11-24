@@ -36,7 +36,7 @@ public partial class LocalFileStorageService : IFileStorageService
         var ext = Path.GetExtension(fileName)?.ToLowerInvariant() ?? string.Empty;
         var key = $"{folder.Trim('/')}/{Guid.NewGuid():N}{ext}";
         var path = ResolvePath(key);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        System.IO.Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
         await using (var fs = File.Create(path))
         {

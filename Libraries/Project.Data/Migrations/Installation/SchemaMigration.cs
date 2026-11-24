@@ -1,4 +1,6 @@
 ﻿using FluentMigrator;
+using Project.Core.Domain.Drivers;
+using Project.Core.Domain.Master;
 using Project.Core.Domain.Users;
 using Project.Data.Extensions;
 
@@ -44,5 +46,12 @@ public class SchemaMigration : ForwardOnlyMigration
         Alter.Table(nameof(User))
             .AddColumn(nameof(User.CompanyId)).AsInt64().Nullable().ForeignKey<Company>()
             .AddColumn(nameof(User.ApprovalStatusId)).AsInt32().NotNullable().WithDefaultValue(1);
+
+        Create.TableFor<DocumentType>();
+        Create.TableFor<VehicleCategory>();
+        Create.TableFor<DriverProfile>();
+        Create.TableFor<DriverVehicle>();
+        Create.TableFor<UserDocument>();
+        Create.TableFor<UserDocumentFile>();
     }
 }

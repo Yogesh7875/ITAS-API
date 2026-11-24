@@ -47,10 +47,18 @@ public class VehicleCategoryController : BaseController
         entity.DisplayOrder = model.DisplayOrder;
         entity.Active = model.Active;
 
+        var currentAdmin = await _workContext.GetCurrentUserAsync();
+        entity.UpdatedBy = currentAdmin?.Id;
+
         if (entity.Id == 0)
+        {
+            entity.CreatedBy = currentAdmin?.Id ?? 0;
             await _categoryService.InsertVehicleCategoryAsync(entity);
+        }
         else
+        {
             await _categoryService.UpdateVehicleCategoryAsync(entity);
+        }
 
         return Success(new { entity.Id }, "Saved");
     }
@@ -64,6 +72,10 @@ public class VehicleCategoryController : BaseController
         var entity = await _categoryService.GetVehicleCategoryByIdAsync(id);
         if (entity == null || entity.Deleted)
             return Error(string.Empty, "Category not found");
+
+        var currentAdmin = await _workContext.GetCurrentUserAsync();
+        entity.UpdatedBy = currentAdmin?.Id;
+        entity.UpdatedOnUtc = CommonHelper.IndianTimeNow;
 
         await _categoryService.DeleteVehicleCategoryAsync(entity);
         return Success(string.Empty, "Deleted");

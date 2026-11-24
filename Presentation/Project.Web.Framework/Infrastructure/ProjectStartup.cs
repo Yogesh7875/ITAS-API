@@ -11,12 +11,15 @@ using Project.Services.Authentication;
 using Project.Services.Caching;
 using Project.Services.Catalog;
 using Project.Services.Configuration;
+using Project.Services.Drivers;
 using Project.Services.Events;
 using Project.Services.ExportImport;
 using Project.Services.Helpers;
 using Project.Services.Installation;
 using Project.Services.Localization;
 using Project.Services.Logging;
+using Project.Services.Master;
+using Project.Services.Media;
 using Project.Services.OTP;
 using Project.Services.Permissions;
 using Project.Services.Security;
@@ -117,6 +120,13 @@ public partial class ProjectStartup : IProjectStartup
         services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
         services.AddScoped<IUserSessionService, UserSessionService>();
         services.AddScoped<IOtpService, OtpService>();
+        services.AddScoped<LocalFileStorageService>();
+        services.AddScoped<CloudinaryFileStorageService>();
+        services.AddScoped<IFileStorageResolver, FileStorageResolver>();
+        services.AddScoped<IFileStorageService>(sp => sp.GetRequiredService<IFileStorageResolver>().Current);
+        services.AddScoped<IDocumentTypeService, DocumentTypeService>();
+        services.AddScoped<IVehicleCategoryService, VehicleCategoryService>();
+        services.AddScoped<IDriverOnboardingService, DriverOnboardingService>();
 
         //register all settings
         var typeFinder = Singleton<ITypeFinder>.Instance;
