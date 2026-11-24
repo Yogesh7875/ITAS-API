@@ -1,6 +1,5 @@
 ﻿using System.Data;
 using FluentMigrator.Builders.Create.Table;
-using LinqToDB.Tools;
 using Project.Core.Domain.Catalog;
 using Project.Core.Domain.Users;
 using Project.Data.Extensions;

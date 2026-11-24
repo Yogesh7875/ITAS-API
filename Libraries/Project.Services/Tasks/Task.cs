@@ -1,6 +1,4 @@
-﻿using System;
-using System.Linq;
-using Project.Core;
+﻿using Project.Core;
 using Project.Core.Caching;
 using Project.Core.Configuration;
 using Project.Core.Domain.Tasks;
