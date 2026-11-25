@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Project.Admin.Models.Drivers;
 using Project.Core;
@@ -9,7 +9,7 @@ using Project.Web.Framework;
 
 namespace Project.Admin.Controllers;
 
-public class VehicleCategoryController : BaseController
+public class VehicleCategoryController : BaseProtectedController
 {
     private readonly IWorkContext _workContext;
     private readonly IVehicleCategoryService _categoryService;
@@ -30,7 +30,7 @@ public class VehicleCategoryController : BaseController
         return Success(list);
     }
 
-    [HttpPost, Authorize]
+    [HttpPost]
     public async Task<IActionResult> Save(VehicleCategorySaveModel model)
     {
         if (!await _workContext.IsCurrentUserIsAdmin())
@@ -63,7 +63,7 @@ public class VehicleCategoryController : BaseController
         return Success(new { entity.Id }, "Saved");
     }
 
-    [HttpPost, Authorize]
+    [HttpPost]
     public async Task<IActionResult> Delete(long id)
     {
         if (!await _workContext.IsCurrentUserIsAdmin())
@@ -79,5 +79,13 @@ public class VehicleCategoryController : BaseController
 
         await _categoryService.DeleteVehicleCategoryAsync(entity);
         return Success(string.Empty, "Deleted");
+    }
+    [HttpGet]
+    public async Task<IActionResult> GetAll()
+    {
+        if (!await _workContext.IsCurrentUserIsAdmin())
+            return Error(string.Empty, "Admin only");
+
+        return Success(await _categoryService.GetAllVehicleCategoriesAsync(showHidden: true));
     }
 }

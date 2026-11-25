@@ -18,16 +18,19 @@ public partial class CompanyService : ICompanyService
 
     private readonly IRepository<Company> _companyRepository;
     private readonly IStaticCacheManager _staticCacheManager;
+    private readonly IRepository<User> _userRepository;
 
     #endregion
 
     #region Constructor
 
     public CompanyService(IRepository<Company> companyRepository,
-        IStaticCacheManager staticCacheManager)
+        IStaticCacheManager staticCacheManager,
+        IRepository<User> userRepository)
     {
         _companyRepository = companyRepository;
         _staticCacheManager = staticCacheManager;
+        _userRepository = userRepository;
     }
 
     #endregion
@@ -205,5 +208,16 @@ public partial class CompanyService : ICompanyService
         return await Task.FromResult(query);
     }
 
+
+    public async Task<Company> GetCompanyByCodeAsync(string code) =>
+    string.IsNullOrWhiteSpace(code) ? null
+        : await _companyRepository.Table.FirstOrDefaultAsync(c => c.Code == code && c.Deleted == false);
+
+    public async Task<Company> GetCompanyByEmailDomainAsync(string domain) =>
+        string.IsNullOrWhiteSpace(domain) ? null
+            : await _companyRepository.Table.FirstOrDefaultAsync(c => c.EmailDomain == domain && c.Deleted == false);
+
+    public async Task<int> GetLinkedUserCountAsync(long companyId) =>
+        await _userRepository.Table.CountAsync(u => u.CompanyId == companyId && u.Deleted == false);
     #endregion
 }

@@ -158,7 +158,7 @@ public class AuthController : BaseController
                 Remark = null,
                 CreatedOnUtc = CommonHelper.IndianTimeNow,
                 UpdatedOnUtc = CommonHelper.IndianTimeNow,
-                ApprovalStatusId = roleName == ProjectUserDefaults.CorporateRoleName ? 0 : 1,
+                ApprovalStatusId = 0,
             };
             await _userService.InsertUserAsync(newUser);
         }
@@ -207,8 +207,7 @@ public class AuthController : BaseController
 
     #region Customer (OTP)
 
-    [HttpPost]
-    [AllowAnonymous]
+    [HttpPost, AllowAnonymous]
     public async Task<IActionResult> SendCustomerOtp([FromBody] SendOtpModel model) =>
         await SendOtpAsync(CUSTOMER_OTP_PURPOSE, model?.Mobile, ProjectUserDefaults.UserRoleName);
 
@@ -250,8 +249,7 @@ public class AuthController : BaseController
     public async Task<IActionResult> SendCorporateOtp([FromBody] SendOtpModel model) =>
     await SendOtpAsync(CORPORATE_OTP_PURPOSE, model?.Mobile, ProjectUserDefaults.CorporateRoleName);
 
-    [HttpPost]
-    [AllowAnonymous]
+    [HttpPost, AllowAnonymous]
     public async Task<IActionResult> VerifyCorporateOtp([FromBody] VerifyOtpModel model)
     {
         var mobile = OtpService.NormalizeMobile(model?.Mobile);

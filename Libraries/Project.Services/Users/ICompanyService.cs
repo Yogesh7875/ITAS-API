@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc.Rendering;
+﻿using Microsoft.AspNetCore.Mvc.Rendering;
 using Project.Core;
 using Project.Core.Domain.Users;
 using Project.Services.Common.DataModel;
@@ -97,4 +97,9 @@ public partial interface ICompanyService
     /// <param name="companyName">Company name</param>
     /// <returns>A task that represents the asynchronous operation</returns>
     Task<IQueryable<Company>> GetAllCompaniesAsync(string companyName = null);
+
+
+    Task<Company> GetCompanyByCodeAsync(string code);
+    Task<Company> GetCompanyByEmailDomainAsync(string domain);
+    Task<int> GetLinkedUserCountAsync(long companyId);
 }

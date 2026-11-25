@@ -15,7 +15,7 @@ public class UserDocumentBuilder : ProjectEntityBuilder<UserDocument>
         .WithColumn(nameof(UserDocument.ExpiryDate)).AsDateTime().Nullable()
         .WithColumn(nameof(UserDocument.StatusId)).AsInt32().NotNullable().WithDefaultValue(0)
         .WithColumn(nameof(UserDocument.RejectionReason)).AsString(500).Nullable()
-        .WithColumn(nameof(UserDocument.ReviewedByUserId)).AsInt64().Nullable().ForeignKey<User>()
+        .WithColumn(nameof(UserDocument.ReviewedByUserId)).AsInt64().Nullable()
         .WithColumn(nameof(UserDocument.ReviewedOnUtc)).AsDateTime().Nullable()
         .WithColumn(nameof(UserDocument.Deleted)).AsBoolean().NotNullable().WithDefaultValue(false)
         .WithColumn(nameof(UserDocument.CreatedOnUtc)).AsDateTime().NotNullable()

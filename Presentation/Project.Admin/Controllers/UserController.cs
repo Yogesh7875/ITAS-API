@@ -171,5 +171,29 @@ public class UserController : BaseProtectedController
         return Success(new { user.CompanyId, ApprovalStatus = user.ApprovalStatusId },
             needsApproval ? "Details submitted for approval" : "Details updated");
     }
+    [HttpGet]
+    public async Task<IActionResult> IsCorporateUserVerified()
+    {
+        var workUser = await _workContext.GetCurrentUserAsync();
+        if (workUser == null)
+            return Error(string.Empty, "User not found");
+
+        var user = await _userService.GetUserByIdAsync(workUser.Id);
+        if (user == null)
+            return Error(string.Empty, "User not found");
+
+        var corporateRole = await _userRoleService.GetUserRoleByNameAsync(ProjectUserDefaults.CorporateRoleName);
+        if (corporateRole == null || user.RoleId != corporateRole.Id)
+            return Error(string.Empty, "Only corporate accounts can update company details");
+
+        var result = new
+        {
+            user.FirstName,
+            user.LastName,
+            user.ApprovalStatusId,
+            user.CompanyId
+        };
+        return Success(result, "Success");
+    }
     #endregion
 }

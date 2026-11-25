@@ -14,7 +14,7 @@ public class DriverProfileBuilder : ProjectEntityBuilder<DriverProfile>
         .WithColumn(nameof(DriverProfile.OnboardingStatusId)).AsInt32().NotNullable().WithDefaultValue(0)
         .WithColumn(nameof(DriverProfile.SubmittedOnUtc)).AsDateTime().Nullable()
         .WithColumn(nameof(DriverProfile.ReviewedOnUtc)).AsDateTime().Nullable()
-        .WithColumn(nameof(DriverProfile.ReviewedByUserId)).AsInt64().Nullable().ForeignKey<User>()
+        .WithColumn(nameof(DriverProfile.ReviewedByUserId)).AsInt64().Nullable()
         .WithColumn(nameof(DriverProfile.RejectionReason)).AsString(500).Nullable()
         .WithColumn(nameof(DriverProfile.Deleted)).AsBoolean().NotNullable().WithDefaultValue(false)
         .WithColumn(nameof(DriverProfile.CreatedOnUtc)).AsDateTime().NotNullable()

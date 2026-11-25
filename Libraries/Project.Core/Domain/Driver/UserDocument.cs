@@ -1,14 +1,7 @@
-﻿using Project.Core.Domain.Common;
+﻿using Project.Core.Constant;
+using Project.Core.Domain.Common;
 
 namespace Project.Core.Domain.Drivers;
-
-public enum DocumentStatus
-{
-    Pending = 0,
-    Approved = 1,
-    Rejected = 2,
-    Expired = 3
-}
 
 public partial class UserDocument : BaseEntity, ISoftDeletedEntity
 {
