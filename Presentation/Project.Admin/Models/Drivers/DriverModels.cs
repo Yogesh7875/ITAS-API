@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Http;
+using Project.Admin.Models.Common;
 
 namespace Project.Admin.Models.Drivers;
 
@@ -12,13 +12,13 @@ public class DriverVehicleModel
     public string Color { get; set; }
 }
 
-/// <summary>multipart/form-data. Files in order: first = front (or single), second = back.</summary>
+/// <summary>application/json. Files are base64 encoded, in order: first = front (or single), second = back.</summary>
 public class UploadDocumentModel
 {
     public long DocumentTypeId { get; set; }
     public string DocumentNumber { get; set; }
     public DateTime? ExpiryDate { get; set; }
-    public List<IFormFile> Files { get; set; } = new();
+    public List<Base64FileModel> Files { get; set; } = new();
 }
 
 public class ReviewDocumentModel

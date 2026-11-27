@@ -237,6 +237,8 @@ public class AuthController : BaseController
 
 
         user.OTP = null;
+        ApplyFcmToken(user, model.FcmToken);
+        user.UpdatedOnUtc = CommonHelper.IndianTimeNow;
         await _userService.UpdateUserAsync(user);
 
         return await IssueTokensAsync(user, ProjectUserDefaults.UserRoleName, model.DeviceId, model.DeviceName, "Login successful");
@@ -274,6 +276,7 @@ public class AuthController : BaseController
 
         // clear OTP after successful verification
         user.OTP = null;
+        ApplyFcmToken(user, model.FcmToken);
         user.UpdatedOnUtc = CommonHelper.IndianTimeNow;
         await _userService.UpdateUserAsync(user);
 
@@ -316,6 +319,7 @@ public class AuthController : BaseController
 
         // clear OTP after successful verification
         user.OTP = null;
+        ApplyFcmToken(user, model.FcmToken);
         user.UpdatedOnUtc = CommonHelper.IndianTimeNow;
         await _userService.UpdateUserAsync(user);
 
@@ -362,12 +366,32 @@ public class AuthController : BaseController
         var sessionId = Guid.Parse(User.FindFirstValue(ProjectClaimTypes.SESSION_ID)!);
 
         await _sessionService.RevokeAsync(userId, sessionId, "User logout");
+
+        //stop push notifications to the logged-out device
+        var user = await _userService.GetUserByIdAsync(userId);
+        if (user != null && !string.IsNullOrEmpty(user.Fcmtoken))
+        {
+            user.Fcmtoken = null;
+            user.UpdatedOnUtc = CommonHelper.IndianTimeNow;
+            await _userService.UpdateUserAsync(user);
+        }
+
         return Success(string.Empty, "Logout successful");
     }
 
     #endregion
 
     #region Utility
+    /// <summary>Stores the device FCM token sent with OTP verification (kept as is when the app sends none)</summary>
+    private static void ApplyFcmToken(User user, string fcmToken)
+    {
+        var token = fcmToken?.Trim();
+        if (string.IsNullOrEmpty(token))
+            return;
+
+        user.Fcmtoken = token.Length > 500 ? token[..500] : token;
+    }
+
     private static bool IsCustomerSide(string roleName) =>
      roleName == ProjectUserDefaults.UserRoleName ||
      roleName == ProjectUserDefaults.CorporateRoleName;

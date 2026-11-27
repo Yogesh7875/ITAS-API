@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Project.Admin.Models.Common;
 using Project.Admin.Models.Drivers;
 using Project.Core;
 using Project.Services.Drivers;
@@ -87,32 +88,28 @@ public class DriverController : BaseProtectedController
     }
 
     [HttpPost]
-    [RequestSizeLimit(20 * 1024 * 1024)]
-    public async Task<IActionResult> UploadDocument([FromForm] UploadDocumentModel model)
+    // base64 is ~4/3 of the binary size: 2 files x 10 MB fit in 30 MB
+    [RequestSizeLimit(30 * 1024 * 1024)]
+    public async Task<IActionResult> UploadDocument([FromBody] UploadDocumentModel model)
     {
         var driver = await _workContext.GetCurrentUserAsync();
         if (driver == null)
             return Error(string.Empty, "User not found.");
+
+        if (model == null)
+            return Error(string.Empty, "Invalid request");
 
         var files = new List<UploadedFile>();
         try
         {
             foreach (var f in model.Files ?? new())
             {
-                // Copy to memory so the stream is seekable for validation and upload.
-                if (f.Length > 10 * 1024 * 1024)
-                    return Error(string.Empty, "File is too large");
+                // Decoded into a seekable MemoryStream for validation and upload.
+                var file = Base64FileHelper.Decode(f, 10 * 1024 * 1024, out var error);
+                if (file == null)
+                    return Error(string.Empty, error);
 
-                var ms = new MemoryStream();
-                await f.CopyToAsync(ms);
-                ms.Position = 0;
-                files.Add(new UploadedFile
-                {
-                    FileName = Path.GetFileName(f.FileName),
-                    ContentType = f.ContentType,
-                    Length = ms.Length,
-                    Content = ms
-                });
+                files.Add(file);
             }
 
             await _onboardingService.SaveDocumentAsync(driver.Id, model.DocumentTypeId,
