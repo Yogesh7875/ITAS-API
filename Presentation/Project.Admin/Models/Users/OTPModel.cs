@@ -20,3 +20,8 @@ public class RefreshTokenModel
 {
     public string RefreshToken { get; set; }
 }
+
+public class UpdateFcmTokenModel
+{
+    public string FcmToken { get; set; }
+}

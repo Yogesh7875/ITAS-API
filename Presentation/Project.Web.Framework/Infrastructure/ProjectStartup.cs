@@ -7,6 +7,7 @@ using Project.Core.Caching;
 using Project.Core.Configuration;
 using Project.Core.Events;
 using Project.Core.Infrastructure;
+using Project.Services.Admin;
 using Project.Services.Authentication;
 using Project.Services.Caching;
 using Project.Services.Catalog;
@@ -127,6 +128,7 @@ public partial class ProjectStartup : IProjectStartup
         services.AddScoped<IDocumentTypeService, DocumentTypeService>();
         services.AddScoped<IVehicleCategoryService, VehicleCategoryService>();
         services.AddScoped<IDriverOnboardingService, DriverOnboardingService>();
+        services.AddScoped<IAdminQueryService, AdminQueryService>();
 
         //register all settings
         var typeFinder = Singleton<ITypeFinder>.Instance;

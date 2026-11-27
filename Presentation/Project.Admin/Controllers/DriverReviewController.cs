@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
+using Project.Admin.Models.Common;
 using Project.Admin.Models.Drivers;
 using Project.Core;
+using Project.Services.Admin;
 using Project.Services.Drivers;
 using Project.Web.Framework;
 
@@ -11,11 +13,14 @@ public class DriverReviewController : BaseProtectedController
 {
     private readonly IWorkContext _workContext;
     private readonly IDriverOnboardingService _onboardingService;
+    private readonly IAdminQueryService _adminQueryService;
 
-    public DriverReviewController(IWorkContext workContext, IDriverOnboardingService onboardingService)
+    public DriverReviewController(IWorkContext workContext, IDriverOnboardingService onboardingService,
+        IAdminQueryService adminQueryService)
     {
         _workContext = workContext;
         _onboardingService = onboardingService;
+        _adminQueryService = adminQueryService;
     }
 
     [HttpGet]
@@ -25,6 +30,58 @@ public class DriverReviewController : BaseProtectedController
             return Error(string.Empty, "Admin only");
 
         return Success(await _onboardingService.GetSubmittedDriversAsync());
+    }
+
+    /// <summary>All drivers, paged. Submitted (waiting for review) drivers come first.</summary>
+    [HttpGet]
+    public async Task<IActionResult> GetAllDrivers([FromQuery] AdminDriverFilterModel model)
+    {
+        if (!await _workContext.IsCurrentUserIsAdmin())
+            return Error(string.Empty, "Admin only");
+
+        var list = await _adminQueryService.GetDriversAsync(new AdminDriverSearch
+        {
+            SearchText = model.Search,
+            OnboardingStatusId = model.OnboardingStatusId,
+            VehicleCategoryId = model.VehicleCategoryId,
+            Active = model.Active,
+            PageIndex = model.PageIndex,
+            PageSize = model.PageSize
+        });
+        return Success(PagedResultModel<AdminDriverListItem>.From(list));
+    }
+
+    /// <summary>One driver: personal details, onboarding status, vehicle and every document with its files.</summary>
+    [HttpGet]
+    public async Task<IActionResult> GetDriverDetail(long userId)
+    {
+        if (!await _workContext.IsCurrentUserIsAdmin())
+            return Error(string.Empty, "Admin only");
+
+        var detail = await _adminQueryService.GetDriverDetailAsync(userId);
+        if (detail == null)
+            return Error(string.Empty, "Driver not found");
+
+        return Success(detail);
+    }
+
+    /// <summary>All uploaded driver documents, paged. Pending documents come first, oldest first.</summary>
+    [HttpGet]
+    public async Task<IActionResult> GetAllDriverDocuments([FromQuery] AdminDocumentFilterModel model)
+    {
+        if (!await _workContext.IsCurrentUserIsAdmin())
+            return Error(string.Empty, "Admin only");
+
+        var list = await _adminQueryService.GetDriverDocumentsAsync(new AdminDocumentSearch
+        {
+            SearchText = model.Search,
+            UserId = model.UserId,
+            DocumentTypeId = model.DocumentTypeId,
+            StatusId = model.StatusId,
+            PageIndex = model.PageIndex,
+            PageSize = model.PageSize
+        });
+        return Success(PagedResultModel<AdminDocumentListItem>.From(list));
     }
 
     [HttpGet]

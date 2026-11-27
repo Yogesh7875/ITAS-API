@@ -61,6 +61,9 @@ public class OnboardingSummaryDataModel
     public int UploadedCount { get; set; }
     public int ApprovedCount { get; set; }
     public bool CanSubmit { get; set; }
+
+    /// <summary>True once the driver has saved first and last name (UpdateDriverPersonalDetails)</summary>
+    public bool PersonalDetailsCompleted { get; set; }
 }
 
 public class SubmittedDriverDataModel

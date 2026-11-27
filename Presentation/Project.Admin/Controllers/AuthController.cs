@@ -1,5 +1,4 @@
 ﻿using System.Security.Claims;
-using Google.Apis.Auth.OAuth2.Requests;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Project.Admin.Models.Users;
@@ -332,8 +331,11 @@ public class AuthController : BaseController
     #region Refresh / Logout (shared by all apps)
     [HttpPost]
     [AllowAnonymous]
-    public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest model)
+    public async Task<IActionResult> Refresh([FromBody] RefreshTokenModel model)
     {
+        if (string.IsNullOrWhiteSpace(model?.RefreshToken))
+            return Unauthorized(new { message = "Session expired. Please login again." });
+
         var result = await _sessionService.RotateAsync(model.RefreshToken);
         if (result == null)
             return Unauthorized(new { message = "Session expired. Please login again." });
@@ -377,6 +379,26 @@ public class AuthController : BaseController
         }
 
         return Success(string.Empty, "Logout successful");
+    }
+
+    /// <summary>The app calls this when Firebase hands it a new FCM token (token refresh / permission granted later)</summary>
+    [HttpPost]
+    [Authorize]
+    public async Task<IActionResult> UpdateFcmToken([FromBody] UpdateFcmTokenModel model)
+    {
+        if (string.IsNullOrWhiteSpace(model?.FcmToken))
+            return Error(string.Empty, "FCM token is required");
+
+        var userId = long.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var user = await _userService.GetUserByIdAsync(userId);
+        if (user == null)
+            return Error(string.Empty, "User not found");
+
+        ApplyFcmToken(user, model.FcmToken);
+        user.UpdatedOnUtc = CommonHelper.IndianTimeNow;
+        await _userService.UpdateUserAsync(user);
+
+        return Success(string.Empty, "FCM token updated");
     }
 
     #endregion

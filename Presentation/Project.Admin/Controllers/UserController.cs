@@ -111,10 +111,15 @@ public class UserController : BaseProtectedController
         if (workUser == null)
             return Error(string.Empty, "User not found");
         var user = await _userService.GetUserByIdAsync(workUser.Id);
+        if (user == null)
+            return Error(string.Empty, "User not found");
 
-        user.FirstName = model.FirstName;
-        user.LastName = model.LastName;
-        user.EmailAddress = model.EmailAddress;
+        if (string.IsNullOrWhiteSpace(model?.FirstName) || string.IsNullOrWhiteSpace(model.LastName))
+            return Error(string.Empty, "Please enter your first and last name");
+
+        user.FirstName = model.FirstName.Trim();
+        user.LastName = model.LastName.Trim();
+        user.EmailAddress = model.EmailAddress?.Trim();
         user.Dob = model.Dob;
         user.Gender = model.Gender;
         user.Address = model.Address;

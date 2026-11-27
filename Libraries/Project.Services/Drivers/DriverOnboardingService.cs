@@ -412,6 +412,7 @@ public partial class DriverOnboardingService : IDriverOnboardingService
                                        r.Status == DocumentStatus.Expired.ToString());
         var status = profile?.OnboardingStatus ?? DriverOnboardingStatus.Draft;
         var canEdit = status == DriverOnboardingStatus.Draft || status == DriverOnboardingStatus.Rejected;
+        var personalDone = !string.IsNullOrWhiteSpace(user?.FirstName) && !string.IsNullOrWhiteSpace(user?.LastName);
 
         return new OnboardingSummaryDataModel
         {
@@ -421,8 +422,8 @@ public partial class DriverOnboardingService : IDriverOnboardingService
             RequiredCount = mandatory.Count,
             UploadedCount = uploaded,
             ApprovedCount = approved,
-            CanSubmit = canEdit && vehicle != null && uploaded == mandatory.Count && !anyProblem &&
-                        !string.IsNullOrWhiteSpace(user?.FirstName)
+            PersonalDetailsCompleted = personalDone,
+            CanSubmit = canEdit && vehicle != null && uploaded == mandatory.Count && !anyProblem && personalDone
         };
     }
 
