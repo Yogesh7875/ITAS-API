@@ -85,11 +85,12 @@ public partial interface ICompanyService
     /// <param name="companyName">Company name</param>
     /// <param name="pageIndex">Page index</param>
     /// <param name="pageSize">Page size</param>
-    /// <param name="showHidden">Whether to show deleted records</param>
+    /// <param name="showHidden">Whether to include inactive companies (deleted ones are never returned)</param>
+    /// <param name="active">Only active (true) or only inactive (false) companies; null for both</param>
     /// <returns>A task that represents the asynchronous operation</returns>
     Task<IPagedList<Company>> GetAllCompaniesAsync(string companyName = null,
         int pageIndex = 0, int pageSize = int.MaxValue,
-        bool showHidden = false);
+        bool showHidden = false, bool? active = null);
 
     /// <summary>
     /// Gets all companies queryable
@@ -102,4 +103,7 @@ public partial interface ICompanyService
     Task<Company> GetCompanyByCodeAsync(string code);
     Task<Company> GetCompanyByEmailDomainAsync(string domain);
     Task<int> GetLinkedUserCountAsync(long companyId);
+
+    /// <summary>Number of (not deleted) users linked to each of the given companies.</summary>
+    Task<IDictionary<long, int>> GetLinkedUserCountsAsync(IList<long> companyIds);
 }

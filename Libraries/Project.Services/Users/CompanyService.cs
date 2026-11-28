@@ -167,24 +167,33 @@ public partial class CompanyService : ICompanyService
     }
 
     /// <summary>
-    /// Gets all companies (paged)
+    /// Gets all companies (paged). Deleted companies are never returned.
     /// </summary>
-    /// <param name="companyName">Company name</param>
+    /// <param name="companyName">Matches name, code or email domain</param>
     /// <param name="pageIndex">Page index</param>
     /// <param name="pageSize">Page size</param>
-    /// <param name="showHidden">Whether to show deleted records</param>
+    /// <param name="showHidden">Whether to include inactive companies</param>
+    /// <param name="active">Only active (true) or only inactive (false) companies; null for both</param>
     /// <returns>A task that represents the asynchronous operation</returns>
     public async Task<IPagedList<Company>> GetAllCompaniesAsync(string companyName = null,
         int pageIndex = 0, int pageSize = int.MaxValue,
-        bool showHidden = false)
+        bool showHidden = false, bool? active = null)
     {
         var result = await _companyRepository.GetAllPagedAsync(query =>
         {
+            query = query.Where(c => !c.Deleted);
+
             if (!string.IsNullOrWhiteSpace(companyName))
-                query = query.Where(c => c.Name.Contains(companyName));
+            {
+                var term = companyName.Trim();
+                query = query.Where(c => c.Name.Contains(term) || c.Code.Contains(term) || c.EmailDomain.Contains(term));
+            }
 
             if (!showHidden)
-                query = query.Where(c => !c.Deleted);
+                query = query.Where(c => c.Active);
+
+            if (active.HasValue)
+                query = query.Where(c => c.Active == active.Value);
 
             query = query.OrderByDescending(c => c.Id);
 
@@ -219,5 +228,19 @@ public partial class CompanyService : ICompanyService
 
     public async Task<int> GetLinkedUserCountAsync(long companyId) =>
         await _userRepository.Table.CountAsync(u => u.CompanyId == companyId && u.Deleted == false);
+
+    public async Task<IDictionary<long, int>> GetLinkedUserCountsAsync(IList<long> companyIds)
+    {
+        if (companyIds == null || companyIds.Count == 0)
+            return new Dictionary<long, int>();
+
+        var rows = await _userRepository.Table
+            .Where(u => u.Deleted == false && u.CompanyId != null && companyIds.Contains(u.CompanyId.Value))
+            .GroupBy(u => u.CompanyId.Value)
+            .Select(g => new { CompanyId = g.Key, Count = g.Count() })
+            .ToListAsync();
+
+        return rows.ToDictionary(r => r.CompanyId, r => r.Count);
+    }
     #endregion
 }

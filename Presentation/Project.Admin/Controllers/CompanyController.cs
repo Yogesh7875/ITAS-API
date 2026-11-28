@@ -31,12 +31,15 @@ public class CompanyController : BaseProtectedController
     // ---------- admin ----------
 
     [HttpGet]
-    public async Task<IActionResult> GetAll(string search = null, int pageIndex = 0, int pageSize = 20)
+    public async Task<IActionResult> GetAll(string search = null, bool? active = null, int pageIndex = 0, int pageSize = 20)
     {
         if (!await _workContext.IsCurrentUserIsAdmin())
             return Error(string.Empty, "Admin only");
 
-        var list = await _companyService.GetAllCompaniesAsync(search, pageIndex, pageSize, showHidden: true);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var list = await _companyService.GetAllCompaniesAsync(search, pageIndex, pageSize, showHidden: true, active: active);
+        var linked = await _companyService.GetLinkedUserCountsAsync(list.Select(c => c.Id).ToList());
+
         return Success(new
         {
             items = list.Select(c => new
@@ -49,7 +52,9 @@ public class CompanyController : BaseProtectedController
                 c.BillingCycleDays,
                 c.Remark,
                 c.Active,
-                c.CreatedOnUtc
+                c.CreatedOnUtc,
+                c.UpdatedOnUtc,
+                LinkedUsers = linked.TryGetValue(c.Id, out var n) ? n : 0
             }).ToList(),
             totalCount = list.TotalCount,
             pageIndex = list.PageIndex,

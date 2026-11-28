@@ -129,6 +129,12 @@ public partial class DriverOnboardingService : IDriverOnboardingService
         return ((DocumentStatus)doc.StatusId).ToString();
     }
 
+    /// <summary>An approved document may be renewed in its last 30 days.</summary>
+    private const int RENEW_WINDOW_DAYS = 30;
+
+    private static bool ExpiresSoon(UserDocument doc) =>
+        doc?.ExpiryDate.HasValue == true && doc.ExpiryDate.Value.Date <= Now.Date.AddDays(RENEW_WINDOW_DAYS);
+
     #endregion
 
     #region Vehicle
@@ -261,6 +267,20 @@ public partial class DriverOnboardingService : IDriverOnboardingService
         if (type.AppliesToId == (int)DocumentAppliesTo.Vehicle && await GetVehicleAsync(userId) == null)
             throw new OnboardingException("Add your vehicle details first");
 
+        // Replace an existing upload of the same document type.
+        var doc = await _documents.Table.FirstOrDefaultAsync(d =>
+            d.UserId == userId && d.DocumentTypeId == type.Id && !d.Deleted);
+
+        var currentStatus = StatusName(doc);
+        if (currentStatus == DocumentStatus.Approved.ToString() && !ExpiresSoon(doc))
+            throw new OnboardingException($"{type.Name} is already approved. No need to upload it again");
+        if (currentStatus == DocumentStatus.Pending.ToString())
+        {
+            var profile = await GetProfileAsync(userId);
+            if (profile?.OnboardingStatusId == (int)DriverOnboardingStatus.Submitted)
+                throw new OnboardingException($"{type.Name} is under review. No need to upload it again");
+        }
+
         if (files == null || files.Count != type.FilesRequired)
             throw new OnboardingException($"Please upload {type.FilesRequired} file(s) for {type.Name}");
 
@@ -301,10 +321,6 @@ public partial class DriverOnboardingService : IDriverOnboardingService
                 throw new OnboardingException("This document has already expired");
             expiry = expiryDate.Value.Date;
         }
-
-        // Replace an existing upload of the same document type.
-        var doc = await _documents.Table.FirstOrDefaultAsync(d =>
-            d.UserId == userId && d.DocumentTypeId == type.Id && !d.Deleted);
 
         if (doc != null)
         {
